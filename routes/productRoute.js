@@ -4,16 +4,59 @@ const protect = require('../middleware/authMiddleware');
 const authorize = require('../middleware/roleMiddleware');
 
 const {
-  createProduct
+  createProduct,
+  getProducts,
+  getProductById,
+  getMyProducts,
+  updateProduct,
+  deleteProduct
 } = require('../controllers/productController');
 
 const router = express.Router();
 
+
+// GET ALL PUBLISHED PRODUCTS
+router.get('/', getProducts);
+
+
+// GET FARMER'S OWN PRODUCTS
+router.get(
+  '/my',
+  protect,
+  authorize('farmer'),
+  getMyProducts
+);
+
+
+// GET ONE PRODUCT
+router.get('/:id', getProductById);
+
+
+// CREATE PRODUCT
 router.post(
   '/',
   protect,
   authorize('farmer'),
   createProduct
 );
+
+
+// UPDATE PRODUCT
+router.put(
+  '/:id',
+  protect,
+  authorize('farmer'),
+  updateProduct
+);
+
+
+// DELETE PRODUCT
+router.delete(
+  '/:id',
+  protect,
+  authorize('farmer'),
+  deleteProduct
+);
+
 
 module.exports = router;

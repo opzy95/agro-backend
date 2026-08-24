@@ -35,6 +35,7 @@ const productRoutes = require('./routes/productRoute');
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
+// app.use('/register', registerUser)
 
 const PORT = process.env.PORT || 5000;
 
