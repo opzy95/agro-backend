@@ -35,6 +35,18 @@ const orderItemSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: 0
+    },
+
+    status: {
+      type: String,
+      enum: [
+        'pending',
+        'processing',
+        'shipped',
+        'delivered',
+        'cancelled'
+      ],
+      default: 'pending'
     }
   },
   { _id: false }

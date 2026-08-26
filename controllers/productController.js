@@ -2,20 +2,6 @@ const Product = require('../models/Product');
 
 // CREATE PRODUCT
 
-
-const existingProduct = await Product.findOne({
-  farmer: req.user._id,
-  name: { $regex: `^${name}$`, $options: 'i' },
-  category,
-  unit
-});
-
-if (existingProduct) {
-  return res.status(409).json({
-    message: 'You already have a product with this name, category and unit'
-  });
-}
-
 const createProduct = async (req, res) => {
   try {
     const {
@@ -43,6 +29,19 @@ const createProduct = async (req, res) => {
     ) {
       return res.status(400).json({
         message: 'Please provide all required product details'
+      });
+    }
+
+    const existingProduct = await Product.findOne({
+      farmer: req.user._id,
+      name: { $regex: `^${name}$`, $options: 'i' },
+      category,
+      unit
+    });
+
+    if (existingProduct) {
+      return res.status(409).json({
+        message: 'You already have a product with this name, category and unit'
       });
     }
 
