@@ -31,12 +31,31 @@ const authRoutes = require('./routes/authRoute');
 const userRoutes = require('./routes/userRoutes');
 const productRoutes = require('./routes/productRoute');
 const orderRoutes = require('./routes/orderRoute');
+const wishlistRoutes = require('./routes/wishlistRoute');
 
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/wishlist', wishlistRoutes);
+
+
+app.use((error, req, res, next) => {
+  if (error.name === 'MulterError' && error.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({
+      message: 'Image must be 5 MB or smaller'
+    });
+  }
+
+  if (error.message === 'Only image files are allowed') {
+    return res.status(400).json({
+      message: error.message
+    });
+  }
+
+  next(error);
+});
 
 
 const PORT = process.env.PORT || 5000;

@@ -35,6 +35,24 @@ const productSchema = new mongoose.Schema(
       default: ''
     },
 
+    imagePublicId: {
+      type: String,
+      default: ''
+    },
+
+    images: [
+      {
+        url: {
+          type: String,
+          required: true
+        },
+        publicId: {
+          type: String,
+          required: true
+        }
+      }
+    ],
+
     // Pricing & Inventory
     price: {
       type: Number,

@@ -9,14 +9,21 @@ const registerUser = async (req, res) => {
       lastName,
       email,
       password,
+      confirmPassword,
       role,
       phone,
       address
     } = req.body;
 
-    if (!firstName || !lastName || !email || !password) {
+    if (!firstName || !lastName || !email || !password || !confirmPassword) {
       return res.status(400).json({
-        message: 'firstName, lastName, email, and password are required'
+        message: 'firstName, lastName, email, password, and confirmPassword are required'
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        message: 'Password do not match'
       });
     }
 
@@ -75,7 +82,8 @@ const registerUser = async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        role: user.role
+        role: user.role,
+        profileImage: user.profileImage
       }
     });
 
@@ -134,7 +142,8 @@ const loginUser = async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        role: user.role
+        role: user.role,
+        profileImage: user.profileImage
       }
     });
 

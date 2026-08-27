@@ -2,6 +2,7 @@ const express = require('express');
 
 const protect = require('../middleware/authMiddleware');
 const authorize = require('../middleware/roleMiddleware');
+const upload = require('../middleware/uploadMiddleware');
 
 const {
   createProduct,
@@ -37,6 +38,7 @@ router.post(
   '/',
   protect,
   authorize('farmer'),
+  upload.productImages,
   createProduct
 );
 
@@ -46,6 +48,7 @@ router.put(
   '/:id',
   protect,
   authorize('farmer'),
+  upload.productImages,
   updateProduct
 );
 

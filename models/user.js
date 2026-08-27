@@ -39,6 +39,51 @@ const userSchema = new mongoose.Schema(
 
     address: {
       type: String
+    },
+
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 1000
+    },
+
+    location: {
+      type: String,
+      trim: true
+    },
+
+    website: {
+      type: String,
+      trim: true,
+      match: [/^https?:\/\/.+/, 'Website must be a valid URL']
+    },
+
+    nin: {
+      type: String,
+      trim: true,
+      select: false
+    },
+
+    ninDocument: {
+      type: String,
+      default: '',
+      select: false
+    },
+
+    ninDocumentPublicId: {
+      type: String,
+      default: '',
+      select: false
+    },
+
+    profileImage: {
+      type: String,
+      default: ''
+    },
+
+    profileImagePublicId: {
+      type: String,
+      default: ''
     }
   },
   {

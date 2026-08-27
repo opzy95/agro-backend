@@ -1,4 +1,48 @@
-const Product = require('../models/Product');
+const Product = require('../models/product');
+const { deleteImage, uploadImage } = require('../config/cloudinary');
+
+const getProductImageFiles = (req) => [
+  ...(req.files?.images || []),
+  ...(req.files?.image || [])
+];
+
+const getImagePublicIds = (product) => [
+  ...(product.images || []).map((image) => image.publicId),
+  product.imagePublicId
+].filter(Boolean).filter((publicId, index, publicIds) => (
+  publicIds.indexOf(publicId) === index
+));
+
+const normalizeShippingMethods = (value) => {
+  if (value === undefined || value === '') {
+    return [];
+  }
+
+  let methods = value;
+
+  if (typeof methods === 'string') {
+    try {
+      methods = JSON.parse(methods);
+    } catch (error) {
+      methods = methods.split(',');
+    }
+  }
+
+  if (!Array.isArray(methods)) {
+    methods = [methods];
+  }
+
+  const labels = {
+    'farm pickup': 'farmPickup',
+    'local delivery': 'localDelivery',
+    'national courier': 'nationalCourier'
+  };
+
+  return methods.map((method) => {
+    const normalized = String(method).trim();
+    return labels[normalized.toLowerCase()] || normalized;
+  });
+};
 
 // CREATE PRODUCT
 
@@ -18,6 +62,8 @@ const createProduct = async (req, res) => {
       shippingMethods,
       status
     } = req.body;
+
+    const normalizedShippingMethods = normalizeShippingMethods(shippingMethods);
 
     if (
       !name ||
@@ -45,18 +91,26 @@ const createProduct = async (req, res) => {
       });
     }
 
+    const imageFiles = getProductImageFiles(req);
+    const uploadedImages = await Promise.all(
+      imageFiles.map((file) => uploadImage(file, 'agro/products'))
+    );
+    const firstImage = uploadedImages[0];
+
     const product = await Product.create({
       name,
       category,
       sku,
       description,
-      image,
+      image: firstImage ? firstImage.url : image,
+      imagePublicId: firstImage ? firstImage.publicId : '',
+      images: uploadedImages,
       price,
       unit,
       availableQuantity,
       minimumOrderQuantity,
       farmLocation,
-      shippingMethods,
+      shippingMethods: normalizedShippingMethods,
       farmer: req.user._id,
       status: status || 'draft'
     });
@@ -75,8 +129,15 @@ const createProduct = async (req, res) => {
       });
     }
 
-    res.status(500).json({
-      message: 'Failed to create product'
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        message: 'Invalid product details',
+        errors: Object.values(error.errors).map((item) => item.message)
+      });
+    }
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to create product'
     });
   }
 };
@@ -187,13 +248,29 @@ const updateProduct = async (req, res) => {
       'status'
     ];
 
+    const previousImagePublicIds = getImagePublicIds(product);
+    const imageFiles = getProductImageFiles(req);
+
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {
         product[field] = req.body[field];
       }
     });
 
+    if (imageFiles.length > 0) {
+      const uploadedImages = await Promise.all(
+        imageFiles.map((file) => uploadImage(file, 'agro/products'))
+      );
+      product.images = uploadedImages;
+      product.image = uploadedImages[0].url;
+      product.imagePublicId = uploadedImages[0].publicId;
+    }
+
     await product.save();
+
+    if (imageFiles.length > 0) {
+      await Promise.all(previousImagePublicIds.map((publicId) => deleteImage(publicId)));
+    }
 
     res.status(200).json({
       message: 'Product updated successfully',
@@ -209,7 +286,7 @@ const updateProduct = async (req, res) => {
       });
     }
 
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       message: 'Failed to update product'
     });
   }
@@ -235,6 +312,7 @@ const deleteProduct = async (req, res) => {
     }
 
     await Product.findByIdAndDelete(req.params.id);
+    await Promise.all(getImagePublicIds(product).map((publicId) => deleteImage(publicId)));
 
     res.status(200).json({
       message: 'Product deleted successfully'
