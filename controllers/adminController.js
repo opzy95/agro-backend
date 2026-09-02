@@ -42,6 +42,48 @@ const deleteUser = async (req, res) => {
   }
 };
 
+const getAllProducts = async (req, res) => {
+  try {
+    const result = await adminService.getAllProducts();
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Get all products error:', error);
+
+    res.status(500).json({
+      message: 'Failed to get products'
+    });
+  }
+};
+
+const getProductById = async (req, res) => {
+  try {
+    const product = await adminService.getProductById(req.params.id);
+
+    res.status(200).json({ product });
+  } catch (error) {
+    console.error('Get admin product error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to get product'
+    });
+  }
+};
+
+const deleteProductAsAdmin = async (req, res) => {
+  try {
+    const result = await adminService.deleteProduct(req.params.id);
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Admin delete product error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to delete product'
+    });
+  }
+};
+
 const verifyFarmer = async (req, res) => {
   try {
     const result = await adminService.verifyFarmer(req.params.id);
@@ -55,6 +97,23 @@ const verifyFarmer = async (req, res) => {
 
     res.status(error.statusCode || 500).json({
       message: error.message || 'Failed to verify farmer'
+    });
+  }
+};
+
+const unverifyFarmer = async (req, res) => {
+  try {
+    const result = await adminService.unverifyFarmer(req.params.id);
+
+    res.status(200).json({
+      message: 'Farmer unverified successfully',
+      farmer: result
+    });
+  } catch (error) {
+    console.error('Unverify farmer error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to unverify farmer'
     });
   }
 };
@@ -81,6 +140,10 @@ module.exports = {
   getAllUsers,
   getUserById,
   deleteUser,
+  getAllProducts,
+  getProductById,
+  deleteProductAsAdmin,
   verifyFarmer,
+  unverifyFarmer,
   rejectFarmerVerification
 };
