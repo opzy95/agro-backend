@@ -61,7 +61,8 @@ const userSchema = new mongoose.Schema(
     nin: {
       type: String,
       trim: true,
-      select: false
+      select: false,
+       maxlength: 11
     },
 
     ninDocument: {
@@ -82,6 +83,30 @@ const userSchema = new mongoose.Schema(
     },
 
     profileImagePublicId: {
+      type: String,
+      default: ''
+    },
+
+    isVerified: {
+      type: Boolean,
+      default: false,
+      // Only relevant for farmers - used to build trust with customers
+      validate: {
+        validator: function() {
+          // This field is mainly intended for farmers, but we don't enforce it here
+          // to allow flexibility in the application logic
+          return true;
+        }
+      }
+    },
+
+    verificationStatus: {
+      type: String,
+      enum: ['pending', 'verified', 'rejected'],
+      default: 'pending'
+    },
+
+    verificationRejectionReason: {
       type: String,
       default: ''
     }

@@ -32,6 +32,8 @@ const userRoutes = require('./routes/userRoutes');
 const productRoutes = require('./routes/productRoute');
 const orderRoutes = require('./routes/orderRoute');
 const wishlistRoutes = require('./routes/wishlistRoute');
+const cartRoutes = require('./routes/cartRoute');
+const adminRoutes = require('./routes/adminRoute');
 
 
 app.use('/api/auth', authRoutes);
@@ -39,6 +41,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/admin', adminRoutes);
 
 
 app.use((error, req, res, next) => {
@@ -58,7 +62,7 @@ app.use((error, req, res, next) => {
 });
 
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
 const startServer = async () => {
   await connectDB();

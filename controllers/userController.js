@@ -1,71 +1,55 @@
-const { deleteImage, uploadImage } = require('../config/cloudinary');
+const userService = require('../services/userService');
 
 const updateProfile = async (req, res) => {
   try {
-    const farmerFields = ['bio', 'location', 'website', 'nin'];
-    const hasFarmerData = farmerFields.some((field) => req.body[field] !== undefined)
-      || req.files?.ninDocument;
-
-    if (hasFarmerData && req.user.role !== 'farmer') {
-      return res.status(403).json({
-        message: 'Only farmers can update farmer profile information'
-      });
-    }
-
-    const allowedFields = [
-      'firstName',
-      'lastName',
-      'phone',
-      'address',
-      ...(req.user.role === 'farmer' ? farmerFields : [])
-    ];
-
-    allowedFields.forEach((field) => {
-      if (req.body[field] !== undefined) {
-        req.user[field] = req.body[field];
-      }
-    });
-
-    const previousImagePublicId = req.user.profileImagePublicId;
-    const previousNinDocumentPublicId = req.user.ninDocumentPublicId;
-    const profileImage = req.files?.image?.[0];
-    const ninDocument = req.files?.ninDocument?.[0];
-
-    if (profileImage) {
-      const uploadedImage = await uploadImage(profileImage, 'agro/profiles');
-      req.user.profileImage = uploadedImage.url;
-      req.user.profileImagePublicId = uploadedImage.publicId;
-    }
-
-    if (ninDocument) {
-      const uploadedDocument = await uploadImage(ninDocument, 'agro/nin-documents');
-      req.user.ninDocument = uploadedDocument.url;
-      req.user.ninDocumentPublicId = uploadedDocument.publicId;
-    }
-
-    await req.user.save();
-
-    if (profileImage && previousImagePublicId) {
-      await deleteImage(previousImagePublicId);
-    }
-
-    if (ninDocument && previousNinDocumentPublicId) {
-      await deleteImage(previousNinDocumentPublicId);
-    }
+    const user = await userService.updateProfile(req.user._id, req.body, req.files);
 
     res.json({
       message: 'Profile updated successfully',
-      user: req.user
+      user
     });
   } catch (error) {
     console.error('Update profile error:', error);
 
     res.status(error.statusCode || 500).json({
-      message: 'Failed to update profile'
+      message: error.message || 'Failed to update profile'
+    });
+  }
+};
+
+const resubmitDocument = async (req, res) => {
+  try {
+    const result = await userService.resubmitDocument(req.user._id, req.file);
+
+    res.status(200).json({
+      message: 'Document resubmitted successfully. Your verification status is now pending.',
+      user: result
+    });
+  } catch (error) {
+    console.error('Resubmit document error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to resubmit document'
+    });
+  }
+};
+
+const getVerificationStatus = async (req, res) => {
+  try {
+    const result = await userService.getVerificationStatus(req.user._id);
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Get verification status error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to get verification status'
     });
   }
 };
 
 module.exports = {
-  updateProfile
+  updateProfile,
+  resubmitDocument,
+  getVerificationStatus
 };
