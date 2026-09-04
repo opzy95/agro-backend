@@ -34,6 +34,7 @@ const orderRoutes = require('./routes/orderRoute');
 const wishlistRoutes = require('./routes/wishlistRoute');
 const cartRoutes = require('./routes/cartRoute');
 const adminRoutes = require('./routes/adminRoute');
+const farmerRoutes = require('./routes/farmerRoute');
 
 
 app.use('/api/auth', authRoutes);
@@ -43,6 +44,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/farmer', farmerRoutes);
 
 
 app.use((error, req, res, next) => {

@@ -1,4 +1,48 @@
 const adminService = require('../services/adminService');
+const User = require('../models/user');
+
+
+const {
+  getOrCreateFarmerWallet
+} = require('../services/walletService');
+
+
+const getFarmerWallet = async (req, res) => {
+  try {
+    const farmer = await User.findById(req.params.id);
+
+    if (!farmer) {
+      return res.status(404).json({
+        message: 'Farmer not found'
+      });
+    }
+
+    if (farmer.role !== 'farmer') {
+      return res.status(400).json({
+        message: 'This user is not a farmer'
+      });
+    }
+
+    const wallet = await getOrCreateFarmerWallet(farmer._id);
+
+    res.status(200).json({
+      farmer: {
+        id: farmer._id,
+        firstName: farmer.firstName,
+        lastName: farmer.lastName,
+        email: farmer.email,
+        isVerified: farmer.isVerified
+      },
+      wallet
+    });
+  } catch (error) {
+    console.error('Get farmer wallet error:', error);
+
+    res.status(500).json({
+      message: 'Failed to get farmer wallet'
+    });
+  }
+};
 
 const getAllUsers = async (req, res) => {
   try {
@@ -145,5 +189,6 @@ module.exports = {
   deleteProductAsAdmin,
   verifyFarmer,
   unverifyFarmer,
-  rejectFarmerVerification
+  rejectFarmerVerification,
+  getFarmerWallet
 };

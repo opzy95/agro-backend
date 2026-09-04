@@ -1,4 +1,5 @@
 const userService = require('../services/userService');
+const { getOrCreateFarmerWallet } = require('../services/walletService');
 
 const updateProfile = async (req, res) => {
   try {
@@ -48,8 +49,23 @@ const getVerificationStatus = async (req, res) => {
   }
 };
 
+const getMyWallet = async (req, res) => {
+  try {
+    const wallet = await getOrCreateFarmerWallet(req.user._id);
+
+    res.status(200).json({ wallet });
+  } catch (error) {
+    console.error('Get farmer wallet error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to get wallet'
+    });
+  }
+};
+
 module.exports = {
   updateProfile,
   resubmitDocument,
-  getVerificationStatus
+  getVerificationStatus,
+  getMyWallet
 };

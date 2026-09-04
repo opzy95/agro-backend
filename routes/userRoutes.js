@@ -6,6 +6,7 @@ const {
   updateProfile,
   resubmitDocument,
   getVerificationStatus,
+  getMyWallet,
 } = require("../controllers/userController");
 
 const router = express.Router();
@@ -32,6 +33,13 @@ router.get(
   protect,
   authorize("farmer"),
   getVerificationStatus,
+);
+
+router.get(
+  "/wallet",
+  protect,
+  authorize("farmer"),
+  getMyWallet,
 );
 
 router.put(
