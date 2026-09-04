@@ -1,5 +1,6 @@
 const User = require('../models/user');
 const Product = require('../models/product');
+const Order = require('../models/order');
 const { deleteImage } = require('../config/cloudinary');
 
 // Get all users with pagination and filtering
@@ -63,6 +64,121 @@ const getAllProducts = async () => {
   return {
     count: products.length,
     products
+  };
+};
+
+// Get order totals grouped by customer for administrators
+const getAllOrders = async () => {
+  const orders = await Order.find()
+    .populate('customer', 'firstName lastName email phone')
+    .populate('items.farmer', 'firstName lastName farmName email')
+    .sort({ createdAt: -1 });
+
+  const customerSummaries = new Map();
+
+  for (const order of orders) {
+    if (!order.customer) {
+      continue;
+    }
+
+    const customerId = order.customer._id.toString();
+    let summary = customerSummaries.get(customerId);
+
+    if (!summary) {
+      summary = {
+        customer: order.customer,
+        totalOrders: 0,
+        itemsBought: 0,
+        farmers: new Map(),
+        totalSpent: 0,
+        latestOrder: null
+      };
+      customerSummaries.set(customerId, summary);
+    }
+
+    summary.totalOrders += 1;
+    summary.totalSpent += order.totalAmount;
+
+    for (const item of order.items) {
+      summary.itemsBought += item.quantity;
+
+      if (item.farmer) {
+        summary.farmers.set(item.farmer._id.toString(), item.farmer);
+      }
+    }
+
+    if (!summary.latestOrder) {
+      summary.latestOrder = order;
+    }
+  }
+
+  return {
+    count: customerSummaries.size,
+    customers: Array.from(customerSummaries.values()).map((summary) => ({
+      customer: summary.customer,
+      totalOrders: summary.totalOrders,
+      itemsBought: summary.itemsBought,
+      farmers: Array.from(summary.farmers.values()),
+      totalSpent: summary.totalSpent,
+      latestOrder: summary.latestOrder
+        ? {
+            id: summary.latestOrder._id,
+            orderStatus: summary.latestOrder.orderStatus,
+            paymentStatus: summary.latestOrder.paymentStatus,
+            totalAmount: summary.latestOrder.totalAmount,
+            createdAt: summary.latestOrder.createdAt
+          }
+        : null
+    }))
+  };
+};
+
+// Get all orders for one customer
+const getCustomerOrders = async (customerId) => {
+  const customer = await User.findById(customerId).select('-password');
+
+  if (!customer) {
+    throw {
+      statusCode: 404,
+      message: 'Customer not found'
+    };
+  }
+
+  if (customer.role !== 'customer') {
+    throw {
+      statusCode: 400,
+      message: 'This user is not a customer'
+    };
+  }
+
+  const orders = await Order.find({ customer: customerId })
+    .populate('customer', 'firstName lastName email phone')
+    .populate('items.product', 'name image price unit')
+    .populate('items.farmer', 'firstName lastName farmName email')
+    .sort({ createdAt: -1 });
+
+  const farmers = new Map();
+  let itemsBought = 0;
+  let totalSpent = 0;
+
+  for (const order of orders) {
+    itemsBought += order.items.reduce((total, item) => total + item.quantity, 0);
+    totalSpent += order.totalAmount;
+
+    for (const item of order.items) {
+      if (item.farmer) {
+        farmers.set(item.farmer._id.toString(), item.farmer);
+      }
+    }
+  }
+
+  return {
+    customer,
+    count: orders.length,
+    itemsBought,
+    farmers: Array.from(farmers.values()),
+    totalSpent,
+    orders
   };
 };
 
@@ -232,6 +348,8 @@ module.exports = {
   getUserById,
   deleteUser,
   getAllProducts,
+  getAllOrders,
+  getCustomerOrders,
   getProductById,
   deleteProduct,
   verifyFarmer,

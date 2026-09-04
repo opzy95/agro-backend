@@ -100,6 +100,34 @@ const getAllProducts = async (req, res) => {
   }
 };
 
+const getAllOrders = async (req, res) => {
+  try {
+    const result = await adminService.getAllOrders();
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Get all orders error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to get orders'
+    });
+  }
+};
+
+const getCustomerOrders = async (req, res) => {
+  try {
+    const result = await adminService.getCustomerOrders(req.params.id);
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Get customer orders error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to get customer orders'
+    });
+  }
+};
+
 const getProductById = async (req, res) => {
   try {
     const product = await adminService.getProductById(req.params.id);
@@ -185,6 +213,8 @@ module.exports = {
   getUserById,
   deleteUser,
   getAllProducts,
+  getAllOrders,
+  getCustomerOrders,
   getProductById,
   deleteProductAsAdmin,
   verifyFarmer,
