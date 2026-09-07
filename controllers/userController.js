@@ -1,5 +1,8 @@
 const userService = require('../services/userService');
 const { getOrCreateFarmerWallet } = require('../services/walletService');
+const {
+  createWithdrawal
+} = require('../services/withdrawalService');
 
 const updateProfile = async (req, res) => {
   try {
@@ -62,10 +65,38 @@ const getMyWallet = async (req, res) => {
     });
   }
 };
+const requestWithdrawal = async (req, res) => {
+  try {
+    const { amount } = req.body;
+
+    if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+      return res.status(400).json({
+        message: 'Withdrawal amount must be greater than 0'
+      });
+    }
+
+    const withdrawal = await createWithdrawal(
+      req.user._id,
+      amount
+    );
+
+    res.status(201).json({
+      message: 'Withdrawal request submitted successfully',
+      withdrawal
+    });
+  } catch (error) {
+    console.error('Request withdrawal error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to request withdrawal'
+    });
+  }
+};
 
 module.exports = {
   updateProfile,
   resubmitDocument,
   getVerificationStatus,
-  getMyWallet
+  getMyWallet,
+  requestWithdrawal
 };

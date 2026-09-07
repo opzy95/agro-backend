@@ -7,6 +7,7 @@ const {
   resubmitDocument,
   getVerificationStatus,
   getMyWallet,
+  requestWithdrawal,
 } = require("../controllers/userController");
 
 const router = express.Router();
@@ -35,12 +36,7 @@ router.get(
   getVerificationStatus,
 );
 
-router.get(
-  "/wallet",
-  protect,
-  authorize("farmer"),
-  getMyWallet,
-);
+router.get("/wallet", protect, authorize("farmer"), getMyWallet);
 
 router.put(
   "/resubmit-document",
@@ -49,6 +45,8 @@ router.put(
   upload.single("ninDocument"),
   resubmitDocument,
 );
+
+router.post("/withdrawals", protect, authorize("farmer"), requestWithdrawal);
 
 router.get("/farmer-test", protect, authorize("farmer"), (req, res) => {
   res.json({

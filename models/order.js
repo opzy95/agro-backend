@@ -138,6 +138,7 @@ const orderSchema = new mongoose.Schema(
     }
   },
   {
+    _id: true,
     timestamps: true
   }
 );
