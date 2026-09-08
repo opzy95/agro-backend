@@ -24,13 +24,14 @@ const getFarmerWallet = async (farmerId) => {
 const creditFarmerEarning = async ({
   farmerId,
   orderId,
+  orderItemId,
   productId,
   amount
 }) => {
   const existingEarning = await Earning.findOne({
     farmer: farmerId,
     order: orderId,
-    product: productId
+    orderItemId: orderItemId
   });
 
   if (existingEarning) {
@@ -42,6 +43,7 @@ const creditFarmerEarning = async ({
   const earning = await Earning.create({
     farmer: farmerId,
     order: orderId,
+    orderItemId: orderItemId,
     product: productId,
     amount,
     status: 'available'

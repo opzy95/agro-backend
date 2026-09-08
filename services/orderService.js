@@ -1,18 +1,15 @@
-const Order = require('../models/order');
-const Product = require('../models/product');
+const Order = require("../models/order");
+const Product = require("../models/product");
+const { creditFarmerEarning } = require("./walletService");
 
 // Create order
 const createOrder = async (customerId, orderData) => {
-  const {
-    items,
-    shippingAddress,
-    deliveryFee = 0
-  } = orderData;
+  const { items, shippingAddress, deliveryFee = 0 } = orderData;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw {
       statusCode: 400,
-      message: 'Order must contain at least one product'
+      message: "Order must contain at least one product",
     };
   }
 
@@ -24,7 +21,7 @@ const createOrder = async (customerId, orderData) => {
   ) {
     throw {
       statusCode: 400,
-      message: 'Complete shipping address is required'
+      message: "Complete shipping address is required",
     };
   }
 
@@ -36,7 +33,7 @@ const createOrder = async (customerId, orderData) => {
     if (!item.product || !item.quantity) {
       throw {
         statusCode: 400,
-        message: 'Each order item must contain a product and quantity'
+        message: "Each order item must contain a product and quantity",
       };
     }
 
@@ -45,15 +42,15 @@ const createOrder = async (customerId, orderData) => {
     if (!product) {
       throw {
         statusCode: 404,
-        message: `Product ${item.product} not found`
+        message: `Product ${item.product} not found`,
       };
     }
 
     // Product must be published
-    if (product.status !== 'published') {
+    if (product.status !== "published") {
       throw {
         statusCode: 400,
-        message: `${product.name} is not currently available`
+        message: `${product.name} is not currently available`,
       };
     }
 
@@ -61,7 +58,7 @@ const createOrder = async (customerId, orderData) => {
     if (item.quantity < product.minimumOrderQuantity) {
       throw {
         statusCode: 400,
-        message: `Minimum order quantity for ${product.name} is ${product.minimumOrderQuantity}`
+        message: `Minimum order quantity for ${product.name} is ${product.minimumOrderQuantity}`,
       };
     }
 
@@ -69,7 +66,7 @@ const createOrder = async (customerId, orderData) => {
     if (item.quantity > product.availableQuantity) {
       throw {
         statusCode: 400,
-        message: `Only ${product.availableQuantity} units of ${product.name} are available`
+        message: `Only ${product.availableQuantity} units of ${product.name} are available`,
       };
     }
 
@@ -82,7 +79,7 @@ const createOrder = async (customerId, orderData) => {
       quantity: item.quantity,
       price: product.price,
       subtotal: itemSubtotal,
-      status: 'pending'
+      status: "pending",
     });
 
     subtotal += itemSubtotal;
@@ -92,14 +89,11 @@ const createOrder = async (customerId, orderData) => {
 
   // Reduce stock
   for (const item of items) {
-    await Product.findByIdAndUpdate(
-      item.product,
-      {
-        $inc: {
-          availableQuantity: -item.quantity
-        }
-      }
-    );
+    await Product.findByIdAndUpdate(item.product, {
+      $inc: {
+        availableQuantity: -item.quantity,
+      },
+    });
   }
 
   // Create order
@@ -109,7 +103,7 @@ const createOrder = async (customerId, orderData) => {
     shippingAddress,
     subtotal,
     deliveryFee: Number(deliveryFee),
-    totalAmount
+    totalAmount,
   });
 
   return order;
@@ -118,43 +112,50 @@ const createOrder = async (customerId, orderData) => {
 // Get customer's orders
 const getMyOrders = async (customerId) => {
   const orders = await Order.find({ customer: customerId })
-    .populate('items.product', 'name image price unit')
-    .populate('items.farmer', 'firstName lastName')
+    .populate("items.product", "name image price unit")
+    .populate("items.farmer", "firstName lastName")
     .sort({ createdAt: -1 });
 
   return {
     count: orders.length,
-    orders
+    orders,
   };
 };
 
 // Get single order by ID
 const getOrderById = async (orderId, user) => {
   const order = await Order.findById(orderId)
-    .populate('customer', 'firstName lastName email phone')
-    .populate('items.product', 'name image price unit')
-    .populate('items.farmer', 'firstName lastName');
+    .populate("customer", "firstName lastName email phone")
+    .populate("items.product", "name image price unit")
+    .populate("items.farmer", "firstName lastName");
 
   if (!order) {
     throw {
       statusCode: 404,
-      message: 'Order not found'
+      message: "Order not found",
     };
   }
 
-  if (user.role === 'customer' && order.customer._id.toString() !== user._id.toString()) {
+  if (
+    user.role === "customer" &&
+    order.customer._id.toString() !== user._id.toString()
+  ) {
     throw {
       statusCode: 403,
-      message: 'You can only view your own orders'
+      message: "You can only view your own orders",
     };
   }
 
-  if (user.role === 'farmer' && !order.items.some(
-    (item) => item.farmer && item.farmer._id.toString() === user._id.toString()
-  )) {
+  if (
+    user.role === "farmer" &&
+    !order.items.some(
+      (item) =>
+        item.farmer && item.farmer._id.toString() === user._id.toString(),
+    )
+  ) {
     throw {
       statusCode: 403,
-      message: 'You are not authorized to view this order'
+      message: "You are not authorized to view this order",
     };
   }
 
@@ -168,7 +169,7 @@ const cancelOrder = async (orderId, customerId) => {
   if (!order) {
     throw {
       statusCode: 404,
-      message: 'Order not found'
+      message: "Order not found",
     };
   }
 
@@ -176,81 +177,127 @@ const cancelOrder = async (orderId, customerId) => {
   if (order.customer.toString() !== customerId.toString()) {
     throw {
       statusCode: 403,
-      message: 'You can only cancel your own orders'
+      message: "You can only cancel your own orders",
     };
   }
 
   // Check if order is still pending
-  if (order.orderStatus !== 'pending') {
+  if (order.orderStatus !== "pending") {
     throw {
       statusCode: 400,
-      message: 'Order cannot be cancelled. It is already ' + order.orderStatus
+      message: "Order cannot be cancelled. It is already " + order.orderStatus,
     };
   }
 
   // Restore stock
   for (const item of order.items) {
-    await Product.findByIdAndUpdate(
-      item.product,
-      {
-        $inc: {
-          availableQuantity: item.quantity
-        }
-      }
-    );
+    await Product.findByIdAndUpdate(item.product, {
+      $inc: {
+        availableQuantity: item.quantity,
+      },
+    });
   }
 
-  order.orderStatus = 'cancelled';
+  order.orderStatus = "cancelled";
   await order.save();
 
   return order;
 };
 
 const getFarmerOrders = async (farmerId) => {
-  const orders = await Order.find({ 'items.farmer': farmerId })
-    .populate('customer', 'firstName lastName email phone')
-    .populate('items.product', 'name image price unit')
+  const orders = await Order.find({ "items.farmer": farmerId })
+    .populate("customer", "firstName lastName email phone")
+    .populate("items.product", "name image price unit")
     .sort({ createdAt: -1 });
 
   return {
     count: orders.length,
-    orders
+    orders,
   };
 };
 
 const updateOrderItemStatus = async (orderId, farmerId, productId, status) => {
-  if (!['processing', 'shipped'].includes(status)) {
-    throw { statusCode: 400, message: 'Farmers can only set items to processing or shipped' };
+  const allowedStatuses = ["processing", "shipped", "delivered"];
+
+  if (!allowedStatuses.includes(status)) {
+    throw {
+      statusCode: 400,
+      message: "Invalid status",
+    };
   }
 
   if (!productId) {
-    throw { statusCode: 400, message: 'Product ID is required' };
+    throw {
+      statusCode: 400,
+      message: "Product ID is required",
+    };
   }
 
   const order = await Order.findById(orderId);
+
   if (!order) {
-    throw { statusCode: 404, message: 'Order not found' };
+    throw {
+      statusCode: 404,
+      message: "Order not found",
+    };
   }
 
-  const orderItem = order.items.find((item) => item.product.toString() === productId);
+  const orderItem = order.items.find(
+    (item) => item.product.toString() === productId,
+  );
+
   if (!orderItem) {
-    throw { statusCode: 404, message: 'Product not found in this order' };
+    throw {
+      statusCode: 404,
+      message: "Product not found in this order",
+    };
   }
 
   if (orderItem.farmer.toString() !== farmerId.toString()) {
-    throw { statusCode: 403, message: 'You are not authorized to update this product' };
+    throw {
+      statusCode: 403,
+      message: "You are not authorized to update this product",
+    };
   }
 
-  if (status === 'processing' && orderItem.status !== 'pending') {
-    throw { statusCode: 400, message: 'Only pending items can be moved to processing' };
+  // Status transition rules
+  if (status === "processing" && orderItem.status !== "pending") {
+    throw {
+      statusCode: 400,
+      message: "Only pending items can be moved to processing",
+    };
   }
 
-  if (status === 'shipped' && orderItem.status !== 'processing') {
-    throw { statusCode: 400, message: 'Only processing items can be shipped' };
+  if (status === "shipped" && orderItem.status !== "processing") {
+    throw {
+      statusCode: 400,
+      message: "Only processing items can be shipped",
+    };
   }
 
+  if (status === "delivered" && orderItem.status !== "shipped") {
+    throw {
+      statusCode: 400,
+      message: "Only shipped items can be delivered",
+    };
+  }
+
+  // Update item status
   orderItem.status = status;
+
+  // Credit farmer when item is delivered and payment is confirmed
+  if (status === "delivered" && order.paymentStatus === "paid") {
+    await creditFarmerEarning({
+      farmerId: orderItem.farmer,
+      orderId: order._id,
+      orderItemId: orderItem._id,
+      productId: orderItem.product,
+      amount: orderItem.subtotal,
+    });  
+  }
+
   updateOverallOrderStatus(order);
+
   await order.save();
 
   return order;
@@ -258,28 +305,33 @@ const updateOrderItemStatus = async (orderId, farmerId, productId, status) => {
 
 const confirmDelivery = async (orderId, customerId, productId) => {
   if (!productId) {
-    throw { statusCode: 400, message: 'Product ID is required' };
+    throw { statusCode: 400, message: "Product ID is required" };
   }
 
   const order = await Order.findById(orderId);
   if (!order) {
-    throw { statusCode: 404, message: 'Order not found' };
+    throw { statusCode: 404, message: "Order not found" };
   }
 
   if (order.customer.toString() !== customerId.toString()) {
-    throw { statusCode: 403, message: 'You can only confirm your own orders' };
+    throw { statusCode: 403, message: "You can only confirm your own orders" };
   }
 
-  const orderItem = order.items.find((item) => item.product.toString() === productId);
+  const orderItem = order.items.find(
+    (item) => item.product.toString() === productId,
+  );
   if (!orderItem) {
-    throw { statusCode: 404, message: 'Product not found in this order' };
+    throw { statusCode: 404, message: "Product not found in this order" };
   }
 
-  if (orderItem.status !== 'shipped') {
-    throw { statusCode: 400, message: 'Only shipped products can be marked as delivered' };
+  if (orderItem.status !== "shipped") {
+    throw {
+      statusCode: 400,
+      message: "Only shipped products can be marked as delivered",
+    };
   }
 
-  orderItem.status = 'delivered';
+  orderItem.status = "delivered";
   updateOverallOrderStatus(order);
   await order.save();
 
@@ -289,14 +341,20 @@ const confirmDelivery = async (orderId, customerId, productId) => {
 const updateOverallOrderStatus = (order) => {
   const statuses = order.items.map((item) => item.status);
 
-  if (statuses.every((status) => status === 'delivered')) {
-    order.orderStatus = 'delivered';
-  } else if (statuses.every((status) => status === 'shipped' || status === 'delivered')) {
-    order.orderStatus = 'shipped';
-  } else if (statuses.some((status) => ['processing', 'shipped', 'delivered'].includes(status))) {
-    order.orderStatus = 'processing';
+  if (statuses.every((status) => status === "delivered")) {
+    order.orderStatus = "delivered";
+  } else if (
+    statuses.every((status) => status === "shipped" || status === "delivered")
+  ) {
+    order.orderStatus = "shipped";
+  } else if (
+    statuses.some((status) =>
+      ["processing", "shipped", "delivered"].includes(status),
+    )
+  ) {
+    order.orderStatus = "processing";
   } else {
-    order.orderStatus = 'pending';
+    order.orderStatus = "pending";
   }
 };
 
@@ -307,5 +365,5 @@ module.exports = {
   cancelOrder,
   getFarmerOrders,
   updateOrderItemStatus,
-  confirmDelivery
+  confirmDelivery,
 };

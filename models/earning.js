@@ -45,4 +45,15 @@ const earningSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+earningSchema.index(
+  {
+    farmer: 1,
+    order: 1,
+    orderItemId: 1
+  },
+  {
+    unique: true
+  }
+);
+
 module.exports = mongoose.model("Earning", earningSchema);
