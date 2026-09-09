@@ -128,6 +128,26 @@ const getCustomerOrders = async (req, res) => {
   }
 };
 
+const markOrderPaid = async (req, res) => {
+  try {
+    const order = await adminService.markOrderPaid(
+      req.params.id,
+      req.body.paymentReference
+    );
+
+    res.status(200).json({
+      message: 'Order marked as paid',
+      order
+    });
+  } catch (error) {
+    console.error('Mark order paid error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to mark order as paid'
+    });
+  }
+};
+
 const getProductById = async (req, res) => {
   try {
     const product = await adminService.getProductById(req.params.id);
@@ -215,6 +235,7 @@ module.exports = {
   getAllProducts,
   getAllOrders,
   getCustomerOrders,
+  markOrderPaid,
   getProductById,
   deleteProductAsAdmin,
   verifyFarmer,

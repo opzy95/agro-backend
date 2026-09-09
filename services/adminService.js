@@ -2,6 +2,7 @@ const User = require('../models/user');
 const Product = require('../models/product');
 const Order = require('../models/order');
 const { deleteImage } = require('../config/cloudinary');
+const { creditOrderEarnings } = require('./walletService');
 
 // Get all users with pagination and filtering
 const getAllUsers = async (filters = {}) => {
@@ -182,6 +183,25 @@ const getCustomerOrders = async (customerId) => {
   };
 };
 
+const markOrderPaid = async (orderId, paymentReference) => {
+  const order = await Order.findById(orderId);
+
+  if (!order) {
+    throw {
+      statusCode: 404,
+      message: 'Order not found'
+    };
+  }
+
+  order.paymentStatus = 'paid';
+  order.paymentReference = paymentReference || order.paymentReference;
+  await order.save();
+
+  await creditOrderEarnings(order);
+
+  return order;
+};
+
 // Get one product for administrators
 const getProductById = async (productId) => {
   const product = await Product.findById(productId)
@@ -350,6 +370,7 @@ module.exports = {
   getAllProducts,
   getAllOrders,
   getCustomerOrders,
+  markOrderPaid,
   getProductById,
   deleteProduct,
   verifyFarmer,

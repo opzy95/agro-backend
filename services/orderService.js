@@ -1,6 +1,6 @@
 const Order = require("../models/order");
 const Product = require("../models/product");
-const { creditFarmerEarning } = require("./walletService");
+const { creditOrderEarnings } = require("./walletService");
 
 // Create order
 const createOrder = async (customerId, orderData) => {
@@ -285,18 +285,9 @@ const updateOrderItemStatus = async (orderId, farmerId, productId, status) => {
   // Update item status
   orderItem.status = status;
 
-  // Credit farmer when item is delivered and payment is confirmed
-  if (status === "delivered" && order.paymentStatus === "paid") {
-    await creditFarmerEarning({
-      farmerId: orderItem.farmer,
-      orderId: order._id,
-      orderItemId: orderItem._id,
-      productId: orderItem.product,
-      amount: orderItem.subtotal,
-    });  
-  }
-
   updateOverallOrderStatus(order);
+
+  await creditOrderEarnings(order);
 
   await order.save();
 

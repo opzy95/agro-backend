@@ -57,8 +57,33 @@ const creditFarmerEarning = async ({
   return earning;
 };
 
+const creditOrderEarnings = async (order) => {
+  if (order.paymentStatus !== 'paid') {
+    return [];
+  }
+
+  const earnings = [];
+
+  for (const item of order.items) {
+    if (item.status !== 'delivered') {
+      continue;
+    }
+
+    earnings.push(await creditFarmerEarning({
+      farmerId: item.farmer,
+      orderId: order._id,
+      orderItemId: item.product,
+      productId: item.product,
+      amount: item.subtotal
+    }));
+  }
+
+  return earnings;
+};
+
 module.exports = {
   getOrCreateFarmerWallet,
   getFarmerWallet,
-  creditFarmerEarning
+  creditFarmerEarning,
+  creditOrderEarnings
 };
