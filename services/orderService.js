@@ -1,6 +1,16 @@
 const Order = require("../models/order");
 const Product = require("../models/product");
 const { creditOrderEarnings } = require("./walletService");
+const {
+  createNotification,
+  notifyRole
+} = require("./notificationService");
+
+const publishNotifications = (notifications) => {
+  Promise.all(notifications).catch((error) => {
+    console.error("Publish order notifications error:", error);
+  });
+};
 
 // Create order
 const createOrder = async (customerId, orderData) => {
@@ -105,6 +115,24 @@ const createOrder = async (customerId, orderData) => {
     deliveryFee: Number(deliveryFee),
     totalAmount,
   });
+
+  const farmerIds = [...new Set(order.items.map((item) => item.farmer.toString()))];
+  publishNotifications([
+    ...farmerIds.map((farmerId) => createNotification({
+      recipient: farmerId,
+      type: "new_order",
+      title: "New order received",
+      message: "A customer placed an order for one of your products.",
+      order: order._id
+    })),
+    notifyRole({
+      role: "admin",
+      type: "new_order",
+      title: "New order placed",
+      message: "A customer placed a new order.",
+      order: order._id
+    })
+  ]);
 
   return order;
 };
@@ -285,6 +313,18 @@ const updateOrderItemStatus = async (orderId, farmerId, productId, status) => {
   // Update item status
   orderItem.status = status;
 
+  if (status === "shipped") {
+    publishNotifications([
+      createNotification({
+        recipient: order.customer,
+        type: "order_shipped",
+        title: "Order shipped",
+        message: `${orderItem.name} has been shipped.`,
+        order: order._id
+      })
+    ]);
+  }
+
   updateOverallOrderStatus(order);
 
   await creditOrderEarnings(order);
@@ -323,6 +363,15 @@ const confirmDelivery = async (orderId, customerId, productId) => {
   }
 
   orderItem.status = "delivered";
+  publishNotifications([
+    createNotification({
+      recipient: orderItem.farmer,
+      type: "order_received",
+      title: "Order received",
+      message: `${orderItem.name} was confirmed as received by the customer.`,
+      order: order._id
+    })
+  ]);
   updateOverallOrderStatus(order);
   await creditOrderEarnings(order);
   await order.save();

@@ -35,6 +35,7 @@ const wishlistRoutes = require('./routes/wishlistRoute');
 const cartRoutes = require('./routes/cartRoute');
 const adminRoutes = require('./routes/adminRoute');
 const farmerRoutes = require('./routes/farmerRoute');
+const notificationRoutes = require('./routes/notificationRoute');
 
 
 app.use('/api/auth', authRoutes);
@@ -45,6 +46,7 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/farmer', farmerRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 
 app.use((error, req, res, next) => {

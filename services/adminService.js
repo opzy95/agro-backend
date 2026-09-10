@@ -3,6 +3,7 @@ const Product = require('../models/product');
 const Order = require('../models/order');
 const { deleteImage } = require('../config/cloudinary');
 const { creditOrderEarnings } = require('./walletService');
+const { createNotification } = require('./notificationService');
 
 // Get all users with pagination and filtering
 const getAllUsers = async (filters = {}) => {
@@ -198,6 +199,18 @@ const markOrderPaid = async (orderId, paymentReference) => {
   await order.save();
 
   await creditOrderEarnings(order);
+
+  Promise.all([
+    ...order.items.map((item) => createNotification({
+      recipient: item.farmer,
+      type: 'payment_confirmed',
+      title: 'Payment confirmed',
+      message: 'Admin confirmed payment for your order item.',
+      order: order._id
+    }))
+  ]).catch((error) => {
+    console.error('Publish payment notification error:', error);
+  });
 
   return order;
 };

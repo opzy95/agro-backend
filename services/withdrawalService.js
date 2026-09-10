@@ -1,6 +1,16 @@
 const mongoose = require('mongoose');
 const Withdrawal = require('../models/withdrawal');
 const Wallet = require('../models/wallet');
+const {
+  createNotification,
+  notifyRole
+} = require('./notificationService');
+
+const publishNotification = (notificationPromise) => {
+  notificationPromise.catch((error) => {
+    console.error('Publish withdrawal notification error:', error);
+  });
+};
 
 const createWithdrawal = async (farmerId, amount) => {
   const withdrawalAmount = Number(amount);
@@ -47,6 +57,14 @@ const createWithdrawal = async (farmerId, amount) => {
     }], { session });
 
     await session.commitTransaction();
+
+    publishNotification(notifyRole({
+      role: 'admin',
+      type: 'withdrawal_requested',
+      title: 'New withdrawal request',
+      message: 'A farmer submitted a withdrawal request for review.',
+      withdrawal: withdrawal._id
+    }));
 
     return withdrawal;
   } catch (error) {
@@ -122,6 +140,17 @@ const changeWithdrawalStatus = async (withdrawalId, status, rejectionReason) => 
     await updateWalletAfterWithdrawal(withdrawal, walletUpdate, session);
 
     await session.commitTransaction();
+
+    publishNotification(createNotification({
+      recipient: withdrawal.farmer,
+      type: status === 'paid' ? 'withdrawal_approved' : 'withdrawal_rejected',
+      title: status === 'paid' ? 'Withdrawal approved' : 'Withdrawal rejected',
+      message: status === 'paid'
+        ? 'Your withdrawal has been approved and paid.'
+        : `Your withdrawal was rejected${rejectionReason ? `: ${rejectionReason}` : '.'}`,
+      withdrawal: withdrawal._id
+    }));
+
     return withdrawal;
   } catch (error) {
     await session.abortTransaction();
