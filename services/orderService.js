@@ -217,7 +217,7 @@ const getFarmerOrders = async (farmerId) => {
 };
 
 const updateOrderItemStatus = async (orderId, farmerId, productId, status) => {
-  const allowedStatuses = ["processing", "shipped", "delivered"];
+  const allowedStatuses = ["processing", "shipped"];
 
   if (!allowedStatuses.includes(status)) {
     throw {
@@ -324,6 +324,7 @@ const confirmDelivery = async (orderId, customerId, productId) => {
 
   orderItem.status = "delivered";
   updateOverallOrderStatus(order);
+  await creditOrderEarnings(order);
   await order.save();
 
   return order;

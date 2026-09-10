@@ -91,7 +91,7 @@ const confirmDelivery = async (req, res) => {
     );
 
     res.status(200).json({
-      message: 'Product marked as delivered',
+      message: 'Order item marked as received',
       order
     });
   } catch (error) {

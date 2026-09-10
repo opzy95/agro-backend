@@ -57,6 +57,83 @@ const createWithdrawal = async (farmerId, amount) => {
   }
 };
 
+const updateWalletAfterWithdrawal = async (withdrawal, update, session) => {
+  const wallet = await Wallet.findOneAndUpdate(
+    {
+      farmer: withdrawal.farmer,
+      pendingBalance: { $gte: withdrawal.amount }
+    },
+    update,
+    { new: true, session }
+  );
+
+  if (!wallet) {
+    throw {
+      statusCode: 400,
+      message: 'Wallet does not have enough pending balance'
+    };
+  }
+};
+
+const changeWithdrawalStatus = async (withdrawalId, status, rejectionReason) => {
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+
+    const withdrawal = await Withdrawal.findOneAndUpdate(
+      { _id: withdrawalId, status: 'pending' },
+      {
+        $set: {
+          status,
+          rejectionReason: rejectionReason || ''
+        }
+      },
+      { new: true, session }
+    );
+
+    if (!withdrawal) {
+      const existingWithdrawal = await Withdrawal.findById(withdrawalId).session(session);
+
+      if (!existingWithdrawal) {
+        throw { statusCode: 404, message: 'Withdrawal not found' };
+      }
+
+      throw {
+        statusCode: 400,
+        message: `Withdrawal is already ${existingWithdrawal.status}`
+      };
+    }
+
+    const walletUpdate = status === 'paid'
+      ? {
+          $inc: {
+            pendingBalance: -withdrawal.amount,
+            totalWithdrawn: withdrawal.amount
+          }
+        }
+      : {
+          $inc: {
+            pendingBalance: -withdrawal.amount,
+            availableBalance: withdrawal.amount
+          }
+        };
+
+    await updateWalletAfterWithdrawal(withdrawal, walletUpdate, session);
+
+    await session.commitTransaction();
+    return withdrawal;
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+};
+
 module.exports = {
-  createWithdrawal
+  createWithdrawal,
+  approveWithdrawal: (withdrawalId) => changeWithdrawalStatus(withdrawalId, 'paid'),
+  rejectWithdrawal: (withdrawalId, rejectionReason) =>
+    changeWithdrawalStatus(withdrawalId, 'rejected', rejectionReason)
 };

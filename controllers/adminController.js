@@ -5,6 +5,10 @@ const User = require('../models/user');
 const {
   getOrCreateFarmerWallet
 } = require('../services/walletService');
+const {
+  approveWithdrawal,
+  rejectWithdrawal
+} = require('../services/withdrawalService');
 
 
 const getFarmerWallet = async (req, res) => {
@@ -148,6 +152,43 @@ const markOrderPaid = async (req, res) => {
   }
 };
 
+const approveFarmerWithdrawal = async (req, res) => {
+  try {
+    const withdrawal = await approveWithdrawal(req.params.id);
+
+    res.status(200).json({
+      message: 'Withdrawal approved and marked as paid',
+      withdrawal
+    });
+  } catch (error) {
+    console.error('Approve withdrawal error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to approve withdrawal'
+    });
+  }
+};
+
+const rejectFarmerWithdrawal = async (req, res) => {
+  try {
+    const withdrawal = await rejectWithdrawal(
+      req.params.id,
+      req.body.rejectionReason
+    );
+
+    res.status(200).json({
+      message: 'Withdrawal rejected',
+      withdrawal
+    });
+  } catch (error) {
+    console.error('Reject withdrawal error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to reject withdrawal'
+    });
+  }
+};
+
 const getProductById = async (req, res) => {
   try {
     const product = await adminService.getProductById(req.params.id);
@@ -236,6 +277,8 @@ module.exports = {
   getAllOrders,
   getCustomerOrders,
   markOrderPaid,
+  approveFarmerWithdrawal,
+  rejectFarmerWithdrawal,
   getProductById,
   deleteProductAsAdmin,
   verifyFarmer,
