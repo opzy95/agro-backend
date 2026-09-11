@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Withdrawal = require('../models/withdrawal');
 const Wallet = require('../models/wallet');
+const FarmerBankAccount = require('../models/FarmerBankAccount');
 const {
   createNotification,
   notifyRole
@@ -11,6 +12,8 @@ const publishNotification = (notificationPromise) => {
     console.error('Publish withdrawal notification error:', error);
   });
 };
+
+const PLATFORM_FEE_RATE = 0.05;
 
 const createWithdrawal = async (farmerId, amount) => {
   const withdrawalAmount = Number(amount);
@@ -26,6 +29,21 @@ const createWithdrawal = async (farmerId, amount) => {
 
   try {
     session.startTransaction();
+
+    const bankAccount = await FarmerBankAccount.findOne({
+      farmer: farmerId,
+      isDefault: true
+    }).session(session);
+
+    if (!bankAccount) {
+      throw {
+        statusCode: 400,
+        message: 'Please add a default bank account before requesting a withdrawal'
+      };
+    }
+
+    const platformFee = Number((withdrawalAmount * PLATFORM_FEE_RATE).toFixed(2));
+    const netAmount = Number((withdrawalAmount - platformFee).toFixed(2));
 
     const wallet = await Wallet.findOneAndUpdate(
       {
@@ -53,6 +71,14 @@ const createWithdrawal = async (farmerId, amount) => {
     const [withdrawal] = await Withdrawal.create([{
       farmer: farmerId,
       amount: withdrawalAmount,
+      platformFee,
+      netAmount,
+      bankAccount: {
+        bankName: bankAccount.bankName,
+        bankCode: bankAccount.bankCode,
+        accountNumber: bankAccount.accountNumber,
+        accountName: bankAccount.accountName
+      },
       status: 'pending'
     }], { session });
 
@@ -73,6 +99,20 @@ const createWithdrawal = async (farmerId, amount) => {
   } finally {
     await session.endSession();
   }
+};
+
+const toAdminWithdrawal = (withdrawal) => {
+  const result = withdrawal.toObject();
+
+  return result;
+};
+
+const getWithdrawals = async () => {
+  const withdrawals = await Withdrawal.find()
+    .populate('farmer', 'firstName lastName email')
+    .sort({ createdAt: -1 });
+
+  return withdrawals.map(toAdminWithdrawal);
 };
 
 const updateWalletAfterWithdrawal = async (withdrawal, update, session) => {
@@ -162,6 +202,7 @@ const changeWithdrawalStatus = async (withdrawalId, status, rejectionReason) => 
 
 module.exports = {
   createWithdrawal,
+  getWithdrawals,
   approveWithdrawal: (withdrawalId) => changeWithdrawalStatus(withdrawalId, 'paid'),
   rejectWithdrawal: (withdrawalId, rejectionReason) =>
     changeWithdrawalStatus(withdrawalId, 'rejected', rejectionReason)

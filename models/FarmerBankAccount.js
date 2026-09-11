@@ -1,0 +1,48 @@
+const mongoose = require('mongoose');
+
+const farmerBankAccountSchema = new mongoose.Schema(
+  {
+    farmer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+
+    bankName: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    bankCode: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    accountNumber: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    accountName: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    isDefault: {
+      type: Boolean,
+      default: false
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+module.exports = mongoose.model(
+  'FarmerBankAccount',
+  farmerBankAccountSchema
+);

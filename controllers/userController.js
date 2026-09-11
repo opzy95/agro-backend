@@ -4,6 +4,10 @@ const {
   createWithdrawal
 } = require('../services/withdrawalService');
 
+const {
+  addBankAccount
+} = require('../services/bankAccountService');
+
 const updateProfile = async (req, res) => {
   try {
     const user = await userService.updateProfile(req.user._id, req.body, req.files);
@@ -93,10 +97,62 @@ const requestWithdrawal = async (req, res) => {
   }
 };
 
+const addMyBankAccount = async (req, res) => {
+  try {
+    const {
+      bankName,
+      bankCode,
+      accountNumber,
+      accountName,
+      isDefault
+    } = req.body;
+
+    if (
+      !bankName ||
+      !bankCode ||
+      !accountNumber ||
+      !accountName
+    ) {
+      return res.status(400).json({
+        message: 'Bank name, bank code, account number and account name are required'
+      });
+    }
+
+    const account = await addBankAccount({
+      farmerId: req.user._id,
+      bankName,
+      bankCode,
+      accountNumber,
+      accountName,
+      isDefault
+    });
+
+    res.status(201).json({
+      message: 'Bank account added successfully',
+      account: {
+        id: account._id,
+        bankName: account.bankName,
+        bankCode: account.bankCode,
+        accountNumber: `******${account.accountNumber.slice(-4)}`,
+        accountName: account.accountName,
+        isDefault: account.isDefault
+      }
+    });
+
+  } catch (error) {
+    console.error('Add bank account error:', error);
+
+    res.status(500).json({
+      message: 'Failed to add bank account'
+    });
+  }
+};
+
 module.exports = {
   updateProfile,
   resubmitDocument,
   getVerificationStatus,
   getMyWallet,
-  requestWithdrawal
+  requestWithdrawal,
+  addMyBankAccount
 };

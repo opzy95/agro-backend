@@ -55,4 +55,11 @@ router.get("/farmer-test", protect, authorize("farmer"), (req, res) => {
   });
 });
 
+router.post(
+  '/bank-accounts',
+  protect,
+  authorize('farmer'),
+  addMyBankAccount
+);
+
 module.exports = router;

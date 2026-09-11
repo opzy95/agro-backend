@@ -7,7 +7,8 @@ const {
 } = require('../services/walletService');
 const {
   approveWithdrawal,
-  rejectWithdrawal
+  rejectWithdrawal,
+  getWithdrawals
 } = require('../services/withdrawalService');
 
 
@@ -169,6 +170,20 @@ const approveFarmerWithdrawal = async (req, res) => {
   }
 };
 
+const getAllWithdrawals = async (req, res) => {
+  try {
+    const withdrawals = await getWithdrawals();
+
+    res.status(200).json({ withdrawals });
+  } catch (error) {
+    console.error('Get withdrawals error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to get withdrawals'
+    });
+  }
+};
+
 const rejectFarmerWithdrawal = async (req, res) => {
   try {
     const withdrawal = await rejectWithdrawal(
@@ -277,6 +292,7 @@ module.exports = {
   getAllOrders,
   getCustomerOrders,
   markOrderPaid,
+  getAllWithdrawals,
   approveFarmerWithdrawal,
   rejectFarmerWithdrawal,
   getProductById,
