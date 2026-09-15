@@ -1,6 +1,9 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const User = require('../models/user');
+
+const createServiceError = (statusCode, message) => ({ statusCode, message });
 
 // Register a new user
 const registerUser = async (userData) => {
@@ -153,7 +156,68 @@ const loginUser = async (credentials) => {
   };
 };
 
+const requestPasswordReset = async (email) => {
+  if (!email) {
+    throw createServiceError(400, 'Email is required');
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+  if (!user) {
+    return null;
+  }
+
+  const resetCode = crypto.randomInt(100000, 1000000).toString();
+  const resetCodeHash = crypto.createHash('sha256').update(resetCode).digest('hex');
+
+  user.passwordResetCodeHash = resetCodeHash;
+  user.passwordResetCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
+  await user.save();
+
+  return {
+    user: {
+      firstName: user.firstName,
+      email: user.email
+    },
+    resetCode
+  };
+};
+
+const resetPassword = async ({ email, code, password, confirmPassword }) => {
+  if (!email || !code || !password || !confirmPassword) {
+    throw createServiceError(400, 'Email, code, password, and confirmPassword are required');
+  }
+
+  if (password !== confirmPassword) {
+    throw createServiceError(400, 'Passwords do not match');
+  }
+
+  if (password.length < 6) {
+    throw createServiceError(400, 'Password must be at least 6 characters');
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase().trim() })
+    .select('+passwordResetCodeHash +passwordResetCodeExpires');
+
+  const submittedCodeHash = crypto.createHash('sha256').update(code.toString()).digest('hex');
+  const codeIsValid = user
+    && user.passwordResetCodeHash === submittedCodeHash
+    && user.passwordResetCodeExpires
+    && user.passwordResetCodeExpires > new Date();
+
+  if (!codeIsValid) {
+    throw createServiceError(400, 'Invalid or expired reset code');
+  }
+
+  user.password = await bcrypt.hash(password, 10);
+  user.passwordResetCodeHash = null;
+  user.passwordResetCodeExpires = null;
+  await user.save();
+};
+
 module.exports = {
   registerUser,
-  loginUser
+  loginUser,
+  requestPasswordReset,
+  resetPassword
 };
