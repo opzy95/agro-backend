@@ -1,16 +1,22 @@
 const authService = require('../services/authService');
 const { sendEmail } = require('../services/email.Service');
+const { recordFailedRegistration } = require('../middleware/registrationRateLimit');
 
-const sendWelcomeEmail = async (user) => {
+const REGISTRATION_TIMEOUT_MS = 60 * 1000;
+const LOGIN_TIMEOUT_MS = 60 * 1000;
+
+const sendVerificationEmail = async (user) => {
   try {
     const result = await sendEmail({
       to: user.email,
-      subject: 'Welcome to Agro',
-      text: `Hi ${user.firstName}, welcome to Agro. Your account has been created successfully.`,
+      subject: 'Verify your Agro email address',
+      text: `Hi ${user.firstName}, your Agro email verification code is ${user.verificationCode}. It expires in 10 minutes.`,
       html: `
-        <h2>Welcome to Agro, ${user.firstName}!</h2>
-        <p>Your account has been created successfully.</p>
-        <p>We are happy to have you with us.</p>
+        <h2>Verify your Agro email address</h2>
+        <p>Hi ${user.firstName},</p>
+        <p>Your email verification code is:</p>
+        <p style="font-size: 24px; font-weight: bold; letter-spacing: 4px;">${user.verificationCode}</p>
+        <p>This code expires in 10 minutes.</p>
       `
     });
 
@@ -32,16 +38,33 @@ const sendWelcomeEmail = async (user) => {
 
 const registerUser = async (req, res) => {
   try {
-    const result = await authService.registerUser(req.body);
-    const welcomeEmail = await sendWelcomeEmail(result.user);
+    const result = await Promise.race([
+      authService.registerUser(req.body),
+      new Promise((resolve, reject) => {
+        setTimeout(() => reject({
+          statusCode: 408,
+          message: 'Registration timed out. Please try again.'
+        }), REGISTRATION_TIMEOUT_MS);
+      })
+    ]);
+    let verificationEmail = null;
+
+    if (result.verificationCode) {
+      verificationEmail = await sendVerificationEmail({
+        ...result.user,
+        verificationCode: result.verificationCode
+      });
+    }
 
     res.status(201).json({
       message: 'Registration successful',
       token: result.token,
       user: result.user,
-      welcomeEmail
+      emailVerificationRequired: Boolean(result.verificationCode),
+      verificationEmail
     });
   } catch (error) {
+    recordFailedRegistration(req);
     console.error('Register error:', error);
 
     res.status(error.statusCode || 500).json({
@@ -52,7 +75,15 @@ const registerUser = async (req, res) => {
 
 const loginUser = async (req, res) => {
   try {
-    const result = await authService.loginUser(req.body);
+    const result = await Promise.race([
+      authService.loginUser(req.body),
+      new Promise((resolve, reject) => {
+        setTimeout(() => reject({
+          statusCode: 408,
+          message: 'Login timed out. Please try again.'
+        }), LOGIN_TIMEOUT_MS);
+      })
+    ]);
 
     res.json({
       message: 'Login successful',
@@ -117,9 +148,42 @@ const resetPassword = async (req, res) => {
   }
 };
 
+const verifyEmail = async (req, res) => {
+  try {
+    const user = await authService.verifyEmail(req.body);
+    const welcomeEmail = await sendEmail({
+      to: user.email,
+      subject: 'Welcome to Agro',
+      text: `Hi ${user.firstName}, your email has been verified successfully. Welcome to Agro!`,
+      html: `
+        <h2>Welcome to Agro, ${user.firstName}!</h2>
+        <p>Your email has been verified successfully.</p>
+        <p>Your Agro account is now ready to use.</p>
+      `
+    });
+
+    console.log(`Welcome email accepted by Brevo for ${user.email}. Message ID: ${welcomeEmail.messageId}`);
+
+    res.json({
+      message: 'Email verified successfully. You can now log in.',
+      welcomeEmail: {
+        status: 'accepted_by_brevo',
+        messageId: welcomeEmail.messageId
+      }
+    });
+  } catch (error) {
+    console.error('Email verification error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Email verification failed'
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
   requestPasswordReset,
-  resetPassword
+  resetPassword,
+  verifyEmail
 };

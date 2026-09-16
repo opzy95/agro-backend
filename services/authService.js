@@ -62,6 +62,10 @@ const registerUser = async (userData) => {
 
   // Hash password
   const hashedPassword = await bcrypt.hash(password, 10);
+  const isAdmin = (role || 'customer') === 'admin';
+  const verificationCode = isAdmin
+    ? null
+    : crypto.randomInt(100000, 1000000).toString();
 
   // Create user
   const user = await User.create({
@@ -71,7 +75,14 @@ const registerUser = async (userData) => {
     password: hashedPassword,
     role: role || 'customer',
     phone,
-    address
+    address,
+    isEmailVerified: isAdmin,
+    emailVerificationCodeHash: verificationCode
+      ? crypto.createHash('sha256').update(verificationCode).digest('hex')
+      : null,
+    emailVerificationCodeExpires: verificationCode
+      ? new Date(Date.now() + 10 * 60 * 1000)
+      : null
   });
 
   // Create JWT
@@ -95,7 +106,8 @@ const registerUser = async (userData) => {
       email: user.email,
       role: user.role,
       profileImage: user.profileImage
-    }
+    },
+    verificationCode
   };
 };
 
@@ -129,6 +141,10 @@ const loginUser = async (credentials) => {
       statusCode: 401,
       message: 'Invalid email or password'
     };
+  }
+
+  if (user.role !== 'admin' && !user.isEmailVerified) {
+    throw createServiceError(403, 'Please verify your email before logging in');
   }
 
   // Create JWT
@@ -215,9 +231,49 @@ const resetPassword = async ({ email, code, password, confirmPassword }) => {
   await user.save();
 };
 
+const verifyEmail = async ({ email, code }) => {
+  if (!email || !code) {
+    throw createServiceError(400, 'Email and verification code are required');
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase().trim() })
+    .select('+emailVerificationCodeHash +emailVerificationCodeExpires');
+
+  if (!user) {
+    throw createServiceError(404, 'Email not found or user is not registered');
+  }
+
+  if (user.role === 'admin') {
+    return {
+      firstName: user.firstName,
+      email: user.email
+    };
+  }
+
+  const submittedCodeHash = crypto.createHash('sha256').update(code.toString()).digest('hex');
+  const codeIsValid = user.emailVerificationCodeHash === submittedCodeHash
+    && user.emailVerificationCodeExpires
+    && user.emailVerificationCodeExpires > new Date();
+
+  if (!codeIsValid) {
+    throw createServiceError(400, 'Invalid or expired email verification code');
+  }
+
+  user.isEmailVerified = true;
+  user.emailVerificationCodeHash = null;
+  user.emailVerificationCodeExpires = null;
+  await user.save();
+
+  return {
+    firstName: user.firstName,
+    email: user.email
+  };
+};
+
 module.exports = {
   registerUser,
   loginUser,
   requestPasswordReset,
-  resetPassword
+  resetPassword,
+  verifyEmail
 };

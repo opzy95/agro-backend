@@ -34,6 +34,12 @@ const protect = async (req, res, next) => {
       });
     }
 
+    if (user.role !== 'admin' && !user.isEmailVerified) {
+      return res.status(403).json({
+        message: 'Please verify your email before accessing this resource'
+      });
+    }
+
     // Attach user to request
     req.user = user;
 

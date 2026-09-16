@@ -39,6 +39,23 @@ const userSchema = new mongoose.Schema(
       select: false
     },
 
+    isEmailVerified: {
+      type: Boolean,
+      default: false
+    },
+
+    emailVerificationCodeHash: {
+      type: String,
+      default: null,
+      select: false
+    },
+
+    emailVerificationCodeExpires: {
+      type: Date,
+      default: null,
+      select: false
+    },
+
     role: {
       type: String,
       enum: ['customer', 'farmer', 'admin'],
