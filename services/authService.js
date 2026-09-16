@@ -199,6 +199,39 @@ const requestPasswordReset = async (email) => {
   };
 };
 
+const resendVerificationCode = async (email) => {
+  if (!email) {
+    throw createServiceError(400, 'Email is required');
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+  if (!user) {
+    throw createServiceError(404, 'Email not found or user is not registered');
+  }
+
+  if (user.role === 'admin' || user.isEmailVerified) {
+    throw createServiceError(400, 'This email is already verified');
+  }
+
+  const verificationCode = crypto.randomInt(100000, 1000000).toString();
+
+  user.emailVerificationCodeHash = crypto
+    .createHash('sha256')
+    .update(verificationCode)
+    .digest('hex');
+  user.emailVerificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
+  await user.save();
+
+  return {
+    user: {
+      firstName: user.firstName,
+      email: user.email
+    },
+    verificationCode
+  };
+};
+
 const resetPassword = async ({ email, code, password, confirmPassword }) => {
   if (!email || !code || !password || !confirmPassword) {
     throw createServiceError(400, 'Email, code, password, and confirmPassword are required');
@@ -274,6 +307,7 @@ module.exports = {
   registerUser,
   loginUser,
   requestPasswordReset,
+  resendVerificationCode,
   resetPassword,
   verifyEmail
 };

@@ -134,6 +134,27 @@ const requestPasswordReset = async (req, res) => {
   }
 };
 
+const resendVerificationCode = async (req, res) => {
+  try {
+    const verificationRequest = await authService.resendVerificationCode(req.body.email);
+    const verificationEmail = await sendVerificationEmail({
+      ...verificationRequest.user,
+      verificationCode: verificationRequest.verificationCode
+    });
+
+    res.json({
+      message: 'A new verification code has been sent to your email',
+      verificationEmail
+    });
+  } catch (error) {
+    console.error('Resend verification error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Could not resend verification code'
+    });
+  }
+};
+
 const resetPassword = async (req, res) => {
   try {
     await authService.resetPassword(req.body);
@@ -184,6 +205,7 @@ module.exports = {
   registerUser,
   loginUser,
   requestPasswordReset,
+  resendVerificationCode,
   resetPassword,
   verifyEmail
 };

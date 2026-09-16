@@ -4,6 +4,7 @@ const {
   registerUser,
   loginUser,
   requestPasswordReset,
+  resendVerificationCode,
   resetPassword,
   verifyEmail
 } = require('../controllers/authController');
@@ -14,6 +15,7 @@ const router = express.Router();
 router.post('/register', registrationRateLimit, registerUser);
 router.post('/login', loginUser);
 router.post('/forgot-password', requestPasswordReset);
+router.post('/resend-verification', resendVerificationCode);
 router.post('/reset-password', resetPassword);
 router.post('/verify-email', verifyEmail);
 
