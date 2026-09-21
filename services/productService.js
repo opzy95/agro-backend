@@ -1,4 +1,6 @@
 const Product = require('../models/product');
+const Review = require('../models/review');
+const Order = require('../models/order');
 const { deleteImage, uploadImage } = require('../config/cloudinary');
 
 // Helper: Get all product image files from request
@@ -152,6 +154,81 @@ const getProductById = async (productId) => {
   return product;
 };
 
+const addProductReview = async (productId, customerId, rating) => {
+  const numericRating = Number(rating);
+
+  if (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5) {
+    throw {
+      statusCode: 400,
+      message: 'Rating must be an integer between 1 and 5'
+    };
+  }
+
+  const product = await Product.findById(productId);
+  if (!product) {
+    throw {
+      statusCode: 404,
+      message: 'Product not found'
+    };
+  }
+
+  const deliveredOrder = await Order.findOne({
+    customer: customerId,
+    items: {
+      $elemMatch: {
+        product: productId,
+        status: 'delivered'
+      }
+    }
+  });
+
+  if (!deliveredOrder) {
+    throw {
+      statusCode: 403,
+      message: 'You can only review products you have received'
+    };
+  }
+
+  const review = await Review.create({
+    product: productId,
+    customer: customerId,
+    rating: numericRating
+  });
+
+  const [ratingSummary] = await Review.aggregate([
+    { $match: { product: product._id } },
+    {
+      $group: {
+        _id: '$product',
+        averageRating: { $avg: '$rating' },
+        ratingCount: { $sum: 1 }
+      }
+    }
+  ]);
+
+  product.rating = Number(ratingSummary.averageRating.toFixed(1));
+  product.ratingCount = ratingSummary.ratingCount;
+  await product.save();
+
+  return { review, product };
+};
+
+const getProductReviews = async (productId) => {
+  const product = await Product.findById(productId).select('_id name rating ratingCount');
+  if (!product) {
+    throw {
+      statusCode: 404,
+      message: 'Product not found'
+    };
+  }
+
+  const reviews = await Review.find({ product: productId })
+    .populate('customer', 'firstName lastName')
+    .sort({ createdAt: -1 });
+
+  return { product, reviews };
+};
+
 // Get farmer's products
 const getMyProducts = async (farmerId) => {
   const products = await Product.find({ farmer: farmerId })
@@ -260,6 +337,8 @@ module.exports = {
   createProduct,
   getProducts,
   getProductById,
+  addProductReview,
+  getProductReviews,
   getMyProducts,
   updateProduct,
   deleteProduct

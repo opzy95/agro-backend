@@ -8,6 +8,8 @@ const {
   createProduct,
   getProducts,
   getProductById,
+  addProductReview,
+  getProductReviews,
   getMyProducts,
   updateProduct,
   deleteProduct
@@ -31,6 +33,17 @@ router.get(
 
 // GET ONE PRODUCT
 router.get('/:id', getProductById);
+
+
+// PRODUCT REVIEWS
+router.get('/:id/reviews', getProductReviews);
+
+router.post(
+  '/:id/reviews',
+  protect,
+  authorize('customer'),
+  addProductReview
+);
 
 
 // CREATE PRODUCT

@@ -58,6 +58,47 @@ const getProductById = async (req, res) => {
   }
 };
 
+const addProductReview = async (req, res) => {
+  try {
+    const result = await productService.addProductReview(
+      req.params.id,
+      req.user._id,
+      req.body.rating
+    );
+
+    res.status(201).json({
+      message: 'Product review submitted successfully',
+      product: result.product,
+      review: result.review
+    });
+  } catch (error) {
+    console.error('Add product review error:', error);
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: 'You have already reviewed this product'
+      });
+    }
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to submit product review'
+    });
+  }
+};
+
+const getProductReviews = async (req, res) => {
+  try {
+    const result = await productService.getProductReviews(req.params.id);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Get product reviews error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to get product reviews'
+    });
+  }
+};
+
 const getMyProducts = async (req, res) => {
   try {
     const result = await productService.getMyProducts(req.user._id);
@@ -113,6 +154,8 @@ module.exports = {
   createProduct,
   getProducts,
   getProductById,
+  addProductReview,
+  getProductReviews,
   getMyProducts,
   updateProduct,
   deleteProduct

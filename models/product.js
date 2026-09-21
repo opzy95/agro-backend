@@ -104,6 +104,19 @@ const productSchema = new mongoose.Schema(
       required: true
     },
 
+    rating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5
+    },
+
+    ratingCount: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+
     // Product status
     status: {
       type: String,
