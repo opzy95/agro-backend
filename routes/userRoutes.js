@@ -2,6 +2,7 @@ const express = require("express");
 const protect = require("../middleware/authMiddleware");
 const authorize = require("../middleware/roleMiddleware");
 const upload = require("../middleware/uploadMiddleware");
+const User = require("../models/user");
 const {
   updateProfile,
   resubmitDocument,
@@ -15,11 +16,22 @@ const {
 
 const router = express.Router();
 
-router.get("/profile", protect, (req, res) => {
-  res.json({
-    message: "You are authenticated!",
-    user: req.user,
-  });
+router.get("/profile", protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .select('-password +nin +ninDocument');
+
+    res.json({
+      message: "You are authenticated!",
+      user,
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+
+    res.status(500).json({
+      message: 'Failed to get profile'
+    });
+  }
 });
 
 router.put(
