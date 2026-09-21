@@ -1,5 +1,37 @@
 const FarmerBankAccount = require('../models/FarmerBankAccount');
 
+const getBankAccounts = async (farmerId) => {
+  return FarmerBankAccount.find({ farmer: farmerId })
+    .sort({ isDefault: -1, createdAt: -1 });
+};
+
+const deleteBankAccount = async (farmerId, accountId) => {
+  const account = await FarmerBankAccount.findOneAndDelete({
+    _id: accountId,
+    farmer: farmerId
+  });
+
+  if (!account) {
+    throw {
+      statusCode: 404,
+      message: 'Bank account not found'
+    };
+  }
+
+  if (account.isDefault) {
+    const nextDefaultAccount = await FarmerBankAccount.findOne({
+      farmer: farmerId
+    }).sort({ createdAt: -1 });
+
+    if (nextDefaultAccount) {
+      nextDefaultAccount.isDefault = true;
+      await nextDefaultAccount.save();
+    }
+  }
+
+  return account;
+};
+
 const addBankAccount = async ({
   farmerId,
   bankName,
@@ -39,5 +71,7 @@ const addBankAccount = async ({
 };
 
 module.exports = {
-  addBankAccount
+  addBankAccount,
+  getBankAccounts,
+  deleteBankAccount
 };

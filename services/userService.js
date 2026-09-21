@@ -3,7 +3,7 @@ const User = require('../models/user');
 
 // Update user profile with optional file uploads
 const updateProfile = async (userId, bodyData, files) => {
-  const farmerFields = ['bio', 'location', 'website', 'nin'];
+  const farmerFields = ['farmName', 'bio', 'location', 'website', 'nin'];
   const hasFarmerData = farmerFields.some((field) => bodyData[field] !== undefined)
     || files?.ninDocument;
 

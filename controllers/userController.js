@@ -5,7 +5,9 @@ const {
 } = require('../services/withdrawalService');
 
 const {
-  addBankAccount
+  addBankAccount,
+  getBankAccounts,
+  deleteBankAccount
 } = require('../services/bankAccountService');
 
 const updateProfile = async (req, res) => {
@@ -148,11 +150,52 @@ const addMyBankAccount = async (req, res) => {
   }
 };
 
+const getMyBankAccounts = async (req, res) => {
+  try {
+    const accounts = await getBankAccounts(req.user._id);
+
+    res.status(200).json({
+      accounts: accounts.map((account) => ({
+        id: account._id,
+        bankName: account.bankName,
+        bankCode: account.bankCode,
+        accountNumber: `******${account.accountNumber.slice(-4)}`,
+        accountName: account.accountName,
+        isDefault: account.isDefault
+      }))
+    });
+  } catch (error) {
+    console.error('Get bank accounts error:', error);
+
+    res.status(500).json({
+      message: 'Failed to fetch bank accounts'
+    });
+  }
+};
+
+const deleteMyBankAccount = async (req, res) => {
+  try {
+    await deleteBankAccount(req.user._id, req.params.accountId);
+
+    res.status(200).json({
+      message: 'Bank account deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete bank account error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to delete bank account'
+    });
+  }
+};
+
 module.exports = {
   updateProfile,
   resubmitDocument,
   getVerificationStatus,
   getMyWallet,
   requestWithdrawal,
-  addMyBankAccount
+  addMyBankAccount,
+  getMyBankAccounts,
+  deleteMyBankAccount
 };

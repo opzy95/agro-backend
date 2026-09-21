@@ -70,6 +70,11 @@ const userSchema = new mongoose.Schema(
       type: String
     },
 
+    farmName: {
+      type: String,
+      trim: true
+    },
+
     bio: {
       type: String,
       trim: true,
@@ -90,7 +95,7 @@ const userSchema = new mongoose.Schema(
     nin: {
       type: String,
       trim: true,
-      select: false,
+      select: true,
        maxlength: 11
     },
 

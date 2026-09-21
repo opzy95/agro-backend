@@ -9,6 +9,8 @@ const {
   getMyWallet,
   requestWithdrawal,
   addMyBankAccount,
+  getMyBankAccounts,
+  deleteMyBankAccount,
 } = require("../controllers/userController");
 
 const router = express.Router();
@@ -61,6 +63,20 @@ router.post(
   protect,
   authorize('farmer'),
   addMyBankAccount
+);
+
+router.get(
+  '/bank-accounts',
+  protect,
+  authorize('farmer'),
+  getMyBankAccounts
+);
+
+router.delete(
+  '/bank-accounts/:accountId',
+  protect,
+  authorize('farmer'),
+  deleteMyBankAccount
 );
 
 module.exports = router;
