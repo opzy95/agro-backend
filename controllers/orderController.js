@@ -1,18 +1,43 @@
 const orderService = require('../services/orderService');
 
-const createOrder = async (req, res) => {
+const initializePayment = async (req, res) => {
   try {
-    const order = await orderService.createOrder(req.user._id, req.body);
+    const payment = await orderService.initializePayment(req.user, req.body);
+
+    res.status(200).json({
+      message: 'Payment initialized successfully',
+      payment
+    });
+  } catch (error) {
+    console.error('Initialize payment error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to initialize payment'
+    });
+  }
+};
+
+const verifyPayment = async (req, res) => {
+  try {
+    const reference =
+      req.body.reference ||
+      req.body.data?.reference ||
+      req.query.reference;
+
+    const order = await orderService.verifyPaymentAndCreateOrder(
+      req.user._id,
+      reference
+    );
 
     res.status(201).json({
-      message: 'Order created successfully',
+      message: 'Payment successful and order booked',
       order
     });
   } catch (error) {
-    console.error('Create order error:', error);
+    console.error('Verify payment error:', error);
 
     res.status(error.statusCode || 500).json({
-      message: error.message || 'Failed to create order'
+      message: error.message || 'Failed to verify payment'
     });
   }
 };
@@ -121,7 +146,8 @@ const cancelOrder = async (req, res) => {
 };
 
 module.exports = {
-  createOrder,
+  initializePayment,
+  verifyPayment,
   getMyOrders,
   getOrderById,
   cancelOrder,

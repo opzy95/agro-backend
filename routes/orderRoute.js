@@ -4,7 +4,8 @@ const protect = require('../middleware/authMiddleware');
 const authorize = require('../middleware/roleMiddleware');
 
 const {
-  createOrder,
+  initializePayment,
+  verifyPayment,
   getMyOrders,
   getOrderById,
   cancelOrder,
@@ -25,7 +26,15 @@ router.post(
   '/',
   protect,
   authorize('customer'),
-  createOrder
+  initializePayment
+);
+
+// Verify payment and book the order
+router.post(
+  '/payment/verify',
+  protect,
+  authorize('customer'),
+  verifyPayment
 );
 
 // Get customer's orders

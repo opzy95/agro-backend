@@ -1,5 +1,7 @@
 const Order = require("../models/order");
 const Product = require("../models/product");
+const Cart = require("../models/cart");
+const { initializeTransaction, verifyTransaction } = require("./paystackService");
 const { creditOrderEarnings } = require("./walletService");
 const {
   createNotification,
@@ -12,8 +14,118 @@ const publishNotifications = (notifications) => {
   });
 };
 
+const validateAndPriceOrder = async (orderData) => {
+  const { items, shippingAddress, deliveryFee = 0 } = orderData;
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    throw {
+      statusCode: 400,
+      message: "Order must contain at least one product",
+    };
+  }
+
+  if (
+    !shippingAddress ||
+    !shippingAddress.fullName ||
+    !shippingAddress.phone ||
+    !shippingAddress.address
+  ) {
+    throw {
+      statusCode: 400,
+      message: "Complete shipping address is required",
+    };
+  }
+
+  let subtotal = 0;
+
+  for (const item of items) {
+    if (!item.product || !item.quantity) {
+      throw {
+        statusCode: 400,
+        message: "Each order item must contain a product and quantity",
+      };
+    }
+
+    const product = await Product.findById(item.product);
+
+    if (!product) {
+      throw { statusCode: 404, message: `Product ${item.product} not found` };
+    }
+
+    if (product.status !== "published") {
+      throw {
+        statusCode: 400,
+        message: `${product.name} is not currently available`,
+      };
+    }
+
+    if (item.quantity < product.minimumOrderQuantity) {
+      throw {
+        statusCode: 400,
+        message: `Minimum order quantity for ${product.name} is ${product.minimumOrderQuantity}`,
+      };
+    }
+
+    if (item.quantity > product.availableQuantity) {
+      throw {
+        statusCode: 400,
+        message: `Only ${product.availableQuantity} units of ${product.name} are available`,
+      };
+    }
+
+    subtotal += product.price * item.quantity;
+  }
+
+  return {
+    subtotal,
+    deliveryFee: Number(deliveryFee),
+    totalAmount: subtotal + Number(deliveryFee)
+  };
+};
+
+const initializePayment = async (customer, orderData) => {
+  const pricing = await validateAndPriceOrder(orderData);
+  const clientUrl = (process.env.CLIENT_URL || '').trim().replace(/\/+$/, '');
+
+  if (!clientUrl) {
+    throw {
+      statusCode: 500,
+      message: 'CLIENT_URL is not configured. Set it to the frontend URL.'
+    };
+  }
+
+  const callbackUrl = `${clientUrl}/payment/callback`;
+  console.log(`[Payment] Callback URL: ${callbackUrl}`);
+
+  const payment = await initializeTransaction({
+    email: customer.email,
+    amount: pricing.totalAmount,
+    callbackUrl,
+    metadata: {
+      customerId: customer._id.toString(),
+      orderData,
+      totalAmount: pricing.totalAmount
+    }
+  });
+
+  return {
+    authorizationUrl: payment.authorization_url,
+    accessCode: payment.access_code,
+    reference: payment.reference,
+    amount: pricing.totalAmount,
+    currency: 'NGN'
+  };
+};
+
 // Create order
-const createOrder = async (customerId, orderData) => {
+const createOrder = async (customerId, orderData, payment) => {
+  if (!payment || payment.status !== "success" || !payment.reference) {
+    throw {
+      statusCode: 400,
+      message: "An order can only be created after successful payment",
+    };
+  }
+
   const { items, shippingAddress, deliveryFee = 0 } = orderData;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -114,6 +226,8 @@ const createOrder = async (customerId, orderData) => {
     subtotal,
     deliveryFee: Number(deliveryFee),
     totalAmount,
+    paymentStatus: "paid",
+    paymentReference: payment.reference,
   });
 
   const farmerIds = [...new Set(order.items.map((item) => item.farmer.toString()))];
@@ -133,6 +247,62 @@ const createOrder = async (customerId, orderData) => {
       order: order._id
     })
   ]);
+
+  return order;
+};
+
+const verifyPaymentAndCreateOrder = async (customerId, reference) => {
+  if (!reference) {
+    throw { statusCode: 400, message: "Payment reference is required" };
+  }
+
+  const payment = await verifyTransaction(reference);
+
+  if (payment.status !== "success") {
+    throw { statusCode: 400, message: "Payment was not successful" };
+  }
+
+  let metadata = payment.metadata || {};
+  if (typeof metadata === "string") {
+    try {
+      metadata = JSON.parse(metadata);
+    } catch (error) {
+      throw {
+        statusCode: 400,
+        message: "Payment metadata is invalid",
+      };
+    }
+  }
+
+  if (metadata.customerId !== customerId.toString()) {
+    throw { statusCode: 403, message: "This payment does not belong to you" };
+  }
+
+  const orderData = metadata.orderData;
+  if (!orderData) {
+    throw { statusCode: 400, message: "Payment does not contain order details" };
+  }
+
+  const pricing = await validateAndPriceOrder(orderData);
+  if (Number(payment.amount) !== Math.round(pricing.totalAmount * 100)) {
+    throw { statusCode: 400, message: "Payment amount does not match the order" };
+  }
+
+  const existingOrder = await Order.findOne({ paymentReference: reference });
+  if (existingOrder) {
+    await Cart.findOneAndUpdate(
+      { customer: customerId },
+      { $set: { items: [], totalAmount: 0 } }
+    );
+    return existingOrder;
+  }
+
+  const order = await createOrder(customerId, orderData, payment);
+
+  await Cart.findOneAndUpdate(
+    { customer: customerId },
+    { $set: { items: [], totalAmount: 0 } }
+  );
 
   return order;
 };
@@ -401,6 +571,8 @@ const updateOverallOrderStatus = (order) => {
 
 module.exports = {
   createOrder,
+  initializePayment,
+  verifyPaymentAndCreateOrder,
   getMyOrders,
   getOrderById,
   cancelOrder,

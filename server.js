@@ -11,6 +11,63 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+const sensitiveFieldPattern = /password|token|authorization|secret|key|cookie|email|phone|address|fullname|firstname|lastname/i;
+
+const sanitizeForLog = (value, depth = 0) => {
+  if (depth > 4) return '[Max depth reached]';
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'object') return value;
+  if (Array.isArray(value)) {
+    return value.slice(0, 20).map((item) => sanitizeForLog(item, depth + 1));
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      sensitiveFieldPattern.test(key)
+        ? '[REDACTED]'
+        : sanitizeForLog(item, depth + 1)
+    ])
+  );
+};
+
+const formatLogValue = (value) => {
+  try {
+    const serialized = JSON.stringify(sanitizeForLog(value));
+    return serialized.length > 4000
+      ? `${serialized.slice(0, 4000)}... [truncated]`
+      : serialized;
+  } catch (error) {
+    return '[Unable to serialize]';
+  }
+};
+
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  let responseBody;
+  const originalJson = res.json.bind(res);
+  const originalSend = res.send.bind(res);
+
+  res.json = (body) => {
+    responseBody = body;
+    return originalJson(body);
+  };
+
+  res.send = (body) => {
+    responseBody = body;
+    return originalSend(body);
+  };
+
+  res.on('finish', () => {
+    console.log(`[API] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${Date.now() - startedAt}ms)`);
+    console.log(`[API] Request: ${formatLogValue(req.body || {})}`);
+    console.log(`[API] Response: ${formatLogValue(responseBody)}`);
+  });
+
+  console.log(`[API] Incoming ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 app.use((error, req, res, next) => {
   if (error instanceof SyntaxError && error.status === 400 && error.type === 'entity.parse.failed') {
     return res.status(400).json({

@@ -143,4 +143,9 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
+orderSchema.index(
+  { paymentReference: 1 },
+  { unique: true, partialFilterExpression: { paymentReference: { $type: 'string' } } }
+);
+
 module.exports = mongoose.model('Order', orderSchema);
