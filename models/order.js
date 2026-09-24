@@ -71,22 +71,25 @@ const orderSchema = new mongoose.Schema(
       }
     },
 
+    deliveryMethod: {
+      type: String,
+      enum: ['farm_pickup', 'local_delivery', 'national_courier'],
+      required: true
+    },
+
     shippingAddress: {
       fullName: {
         type: String,
-        required: true,
         trim: true
       },
 
       phone: {
         type: String,
-        required: true,
         trim: true
       },
 
       address: {
         type: String,
-        required: true,
         trim: true
       }
     },
@@ -132,10 +135,31 @@ const orderSchema = new mongoose.Schema(
         'processing',
         'shipped',
         'delivered',
+        'partially_delivered',
         'cancelled'
       ],
       default: 'pending'
-    }
+    },
+
+    farmerStatuses: [{
+      farmer: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      status: {
+        type: String,
+        enum: [
+          'pending',
+          'processing',
+          'shipped',
+          'delivered',
+          'partially_delivered',
+          'cancelled'
+        ],
+        default: 'pending'
+      }
+    }]
   },
   {
     _id: true,

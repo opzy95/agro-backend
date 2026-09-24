@@ -63,18 +63,27 @@ const creditOrderEarnings = async (order) => {
   }
 
   const earnings = [];
+  const orderSubtotal = order.items.reduce(
+    (total, item) => total + Number(item.subtotal),
+    0
+  );
+  const deliveryFee = Number(order.deliveryFee || 0);
+  let allocatedDeliveryFee = 0;
 
-  for (const item of order.items) {
-    if (item.status !== 'delivered') {
-      continue;
-    }
+  for (const [index, item] of order.items.entries()) {
+    const isLastItem = index === order.items.length - 1;
+    const itemDeliveryFee = isLastItem
+      ? deliveryFee - allocatedDeliveryFee
+      : Number((deliveryFee * Number(item.subtotal) / orderSubtotal).toFixed(2));
+
+    allocatedDeliveryFee += itemDeliveryFee;
 
     earnings.push(await creditFarmerEarning({
       farmerId: item.farmer,
       orderId: order._id,
       orderItemId: item.product,
       productId: item.product,
-      amount: item.subtotal
+      amount: Number((Number(item.subtotal) + itemDeliveryFee).toFixed(2))
     }));
   }
 

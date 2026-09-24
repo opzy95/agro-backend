@@ -8,14 +8,47 @@ const {
   notifyRole
 } = require("./notificationService");
 
+const DELIVERY_METHODS = [
+  "farm_pickup",
+  "local_delivery",
+  "national_courier"
+];
+
 const publishNotifications = (notifications) => {
   Promise.all(notifications).catch((error) => {
     console.error("Publish order notifications error:", error);
   });
 };
 
+const validateDeliveryDetails = (deliveryMethod, shippingAddress) => {
+  if (!DELIVERY_METHODS.includes(deliveryMethod)) {
+    throw {
+      statusCode: 400,
+      message: "A valid delivery method is required: farm_pickup, local_delivery, or national_courier"
+    };
+  }
+
+  if (
+    ["local_delivery", "national_courier"].includes(deliveryMethod) &&
+    (!shippingAddress ||
+      !shippingAddress.fullName ||
+      !shippingAddress.phone ||
+      !shippingAddress.address)
+  ) {
+    throw {
+      statusCode: 400,
+      message: "Complete shipping address is required for this delivery method"
+    };
+  }
+};
+
 const validateAndPriceOrder = async (orderData) => {
-  const { items, shippingAddress, deliveryFee = 0 } = orderData;
+  const {
+    items,
+    deliveryMethod,
+    shippingAddress,
+    deliveryFee = 0
+  } = orderData;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw {
@@ -24,17 +57,7 @@ const validateAndPriceOrder = async (orderData) => {
     };
   }
 
-  if (
-    !shippingAddress ||
-    !shippingAddress.fullName ||
-    !shippingAddress.phone ||
-    !shippingAddress.address
-  ) {
-    throw {
-      statusCode: 400,
-      message: "Complete shipping address is required",
-    };
-  }
+  validateDeliveryDetails(deliveryMethod, shippingAddress);
 
   let subtotal = 0;
 
@@ -126,7 +149,12 @@ const createOrder = async (customerId, orderData, payment) => {
     };
   }
 
-  const { items, shippingAddress, deliveryFee = 0 } = orderData;
+  const {
+    items,
+    deliveryMethod,
+    shippingAddress,
+    deliveryFee = 0
+  } = orderData;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw {
@@ -135,17 +163,7 @@ const createOrder = async (customerId, orderData, payment) => {
     };
   }
 
-  if (
-    !shippingAddress ||
-    !shippingAddress.fullName ||
-    !shippingAddress.phone ||
-    !shippingAddress.address
-  ) {
-    throw {
-      statusCode: 400,
-      message: "Complete shipping address is required",
-    };
-  }
+  validateDeliveryDetails(deliveryMethod, shippingAddress);
 
   const orderItems = [];
   let subtotal = 0;
@@ -222,13 +240,18 @@ const createOrder = async (customerId, orderData, payment) => {
   const order = await Order.create({
     customer: customerId,
     items: orderItems,
+    deliveryMethod,
     shippingAddress,
     subtotal,
     deliveryFee: Number(deliveryFee),
     totalAmount,
     paymentStatus: "paid",
     paymentReference: payment.reference,
+    farmerStatuses: [...new Set(orderItems.map((item) => item.farmer.toString()))]
+      .map((farmer) => ({ farmer, status: "pending" })),
   });
+
+  await creditOrderEarnings(order);
 
   const farmerIds = [...new Set(order.items.map((item) => item.farmer.toString()))];
   publishNotifications([
@@ -397,6 +420,8 @@ const cancelOrder = async (orderId, customerId) => {
   }
 
   order.orderStatus = "cancelled";
+  order.farmerStatuses = [...new Set(order.items.map((item) => item.farmer.toString()))]
+    .map((farmer) => ({ farmer, status: "cancelled" }));
   await order.save();
 
   return order;
@@ -410,14 +435,24 @@ const getFarmerOrders = async (farmerId) => {
 
   return {
     count: orders.length,
-    orders,
+    orders: orders.map((order) => ({
+      ...order.toObject(),
+      deliveryMethod: order.deliveryMethod,
+      farmerStatus: order.farmerStatuses?.find(
+        (entry) => entry.farmer.toString() === farmerId.toString(),
+      )?.status || getStatusForItems(
+        order.items.filter((item) => item.farmer.toString() === farmerId.toString()),
+      ),
+      items: order.items.map((item) => ({
+        ...item.toObject(),
+        productId: item.product?._id || item.product
+      }))
+    }))
   };
 };
 
 const updateOrderItemStatus = async (orderId, farmerId, productId, status) => {
-  const allowedStatuses = ["processing", "shipped"];
-
-  if (!allowedStatuses.includes(status)) {
+  if (!["processing", "shipped"].includes(status)) {
     throw {
       statusCode: 400,
       message: "Invalid status",
@@ -440,6 +475,17 @@ const updateOrderItemStatus = async (orderId, farmerId, productId, status) => {
     };
   }
 
+  // Legacy pickup orders were created before deliveryMethod was required.
+  if (
+    !order.deliveryMethod &&
+    (!order.shippingAddress ||
+      !order.shippingAddress.fullName ||
+      !order.shippingAddress.phone ||
+      !order.shippingAddress.address)
+  ) {
+    order.deliveryMethod = "farm_pickup";
+  }
+
   const orderItem = order.items.find(
     (item) => item.product.toString() === productId,
   );
@@ -458,30 +504,47 @@ const updateOrderItemStatus = async (orderId, farmerId, productId, status) => {
     };
   }
 
+  const farmerItems = order.items.filter(
+    (item) => item.farmer.toString() === farmerId.toString(),
+  );
+
+  if (order.deliveryMethod === "farm_pickup" && status === "shipped") {
+    throw {
+      statusCode: 400,
+      message: "Farm pickup orders only require the farmer to mark the item as processing",
+    };
+  }
+
   // Status transition rules
-  if (status === "processing" && orderItem.status !== "pending") {
+  if (status === "processing" && farmerItems.some((item) => item.status !== "pending")) {
     throw {
       statusCode: 400,
       message: "Only pending items can be moved to processing",
     };
   }
 
-  if (status === "shipped" && orderItem.status !== "processing") {
+  if (status === "shipped" && farmerItems.some((item) => item.status !== "processing")) {
     throw {
       statusCode: 400,
       message: "Only processing items can be shipped",
     };
   }
 
-  if (status === "delivered" && orderItem.status !== "shipped") {
-    throw {
-      statusCode: 400,
-      message: "Only shipped items can be delivered",
-    };
-  }
+  // Keep all items from one farmer in the same status.
+  farmerItems.forEach((item) => {
+    item.status = status;
+  });
 
-  // Update item status
-  orderItem.status = status;
+  const farmerStatuses = order.farmerStatuses || [];
+  const farmerStatus = farmerStatuses.find(
+    (entry) => entry.farmer.toString() === farmerId.toString(),
+  );
+  if (farmerStatus) {
+    farmerStatus.status = status;
+  } else {
+    farmerStatuses.push({ farmer: farmerId, status });
+    order.farmerStatuses = farmerStatuses;
+  }
 
   if (status === "shipped") {
     publishNotifications([
@@ -518,6 +581,17 @@ const confirmDelivery = async (orderId, customerId, productId) => {
     throw { statusCode: 403, message: "You can only confirm your own orders" };
   }
 
+  // Legacy pickup orders were created before deliveryMethod was required.
+  if (
+    !order.deliveryMethod &&
+    (!order.shippingAddress ||
+      !order.shippingAddress.fullName ||
+      !order.shippingAddress.phone ||
+      !order.shippingAddress.address)
+  ) {
+    order.deliveryMethod = "farm_pickup";
+  }
+
   const orderItem = order.items.find(
     (item) => item.product.toString() === productId,
   );
@@ -525,10 +599,21 @@ const confirmDelivery = async (orderId, customerId, productId) => {
     throw { statusCode: 404, message: "Product not found in this order" };
   }
 
-  if (orderItem.status !== "shipped") {
+  if (orderItem.status === "delivered") {
+    return { order, item: orderItem };
+  }
+
+  const canConfirmPickup =
+    order.deliveryMethod === "farm_pickup" && orderItem.status === "processing";
+  const canConfirmDelivery =
+    order.deliveryMethod !== "farm_pickup" && orderItem.status === "shipped";
+
+  if (!canConfirmPickup && !canConfirmDelivery) {
     throw {
       statusCode: 400,
-      message: "Only shipped products can be marked as delivered",
+      message: order.deliveryMethod === "farm_pickup"
+        ? "Only processing pickup items can be marked as received"
+        : "Only shipped products can be marked as delivered",
     };
   }
 
@@ -546,14 +631,27 @@ const confirmDelivery = async (orderId, customerId, productId) => {
   await creditOrderEarnings(order);
   await order.save();
 
-  return order;
+  return { order, item: orderItem };
 };
 
 const updateOverallOrderStatus = (order) => {
+  order.farmerStatuses = [...new Set(order.items.map((item) => item.farmer.toString()))]
+    .map((farmer) => {
+      const farmerItems = order.items.filter(
+        (item) => item.farmer.toString() === farmer,
+      );
+      return {
+        farmer,
+        status: getStatusForItems(farmerItems),
+      };
+    });
+
   const statuses = order.items.map((item) => item.status);
 
   if (statuses.every((status) => status === "delivered")) {
     order.orderStatus = "delivered";
+  } else if (statuses.some((status) => status === "delivered")) {
+    order.orderStatus = "partially_delivered";
   } else if (
     statuses.every((status) => status === "shipped" || status === "delivered")
   ) {
@@ -567,6 +665,20 @@ const updateOverallOrderStatus = (order) => {
   } else {
     order.orderStatus = "pending";
   }
+};
+
+const getStatusForItems = (items) => {
+  const statuses = items.map((item) => item.status);
+
+  if (statuses.every((status) => status === "delivered")) return "delivered";
+  if (statuses.some((status) => status === "delivered")) return "partially_delivered";
+  if (statuses.every((status) => status === "shipped" || status === "delivered")) {
+    return "shipped";
+  }
+  if (statuses.some((status) => ["processing", "shipped", "delivered"].includes(status))) {
+    return "processing";
+  }
+  return "pending";
 };
 
 module.exports = {

@@ -109,15 +109,16 @@ const updateOrderItemStatus = async (req, res) => {
 
 const confirmDelivery = async (req, res) => {
   try {
-    const order = await orderService.confirmDelivery(
+    const result = await orderService.confirmDelivery(
       req.params.id,
       req.user._id,
       req.body.productId
     );
 
     res.status(200).json({
-      message: 'Order item marked as received',
-      order
+      message: 'Order item marked as delivered',
+      order: result.order,
+      item: result.item
     });
   } catch (error) {
     console.error('Confirm delivery error:', error);
