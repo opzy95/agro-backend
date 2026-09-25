@@ -5,8 +5,9 @@ const router = express.Router();
 const protect = require("../middleware/authMiddleware");
 const adminOnly = require("../middleware/adminMiddleware");
 
-const { getAllUsers, getUserById, deleteUser, getAllProducts, getAllOrders, getCustomerOrders, markOrderPaid, getAllWithdrawals, approveFarmerWithdrawal, rejectFarmerWithdrawal, getProductById, deleteProductAsAdmin, verifyFarmer, unverifyFarmer, rejectFarmerVerification, getFarmerWallet } = require("../controllers/adminController");
+const { getAdminFinancials, getAllUsers, getUserById, deleteUser, getAllProducts, getAllOrders, getCustomerOrders, markOrderPaid, getAllWithdrawals, approveFarmerWithdrawal, rejectFarmerWithdrawal, getProductById, deleteProductAsAdmin, verifyFarmer, unverifyFarmer, rejectFarmerVerification, getFarmerWallet } = require("../controllers/adminController");
 
+router.get('/financials', protect, adminOnly, getAdminFinancials);
 router.get("/users", protect, adminOnly, getAllUsers);
 router.get("/users/:id", protect, adminOnly, getUserById);
 router.delete('/users/:id', protect, adminOnly, deleteUser);

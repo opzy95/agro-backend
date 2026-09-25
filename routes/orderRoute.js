@@ -45,7 +45,7 @@ router.get(
   getMyOrders
 );
 
-// Confirm delivery for an order item
+// Confirm delivery for the entire order
 router.put(
   '/:id/confirm-delivery',
   protect,

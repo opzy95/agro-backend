@@ -95,6 +95,17 @@ const addToCart = async (customerId, productId, quantity) => {
     return cart;
   }
 
+  const hasDifferentFarmer = cart.items.some(
+    item => item.farmer.toString() !== product.farmer.toString()
+  );
+
+  if (hasDifferentFarmer) {
+    throw {
+      statusCode: 400,
+      message: 'You can only add products from one farmer per order. Please complete or clear your current cart before adding this product'
+    };
+  }
+
   // Check if product already in cart
   const existingItem = cart.items.find(
     item => item.product.toString() === productId

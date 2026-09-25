@@ -111,14 +111,13 @@ const confirmDelivery = async (req, res) => {
   try {
     const result = await orderService.confirmDelivery(
       req.params.id,
-      req.user._id,
-      req.body.productId
+      req.user._id
     );
 
     res.status(200).json({
-      message: 'Order item marked as delivered',
+      message: 'Order marked as delivered',
       order: result.order,
-      item: result.item
+      items: result.items
     });
   } catch (error) {
     console.error('Confirm delivery error:', error);

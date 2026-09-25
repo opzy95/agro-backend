@@ -99,6 +99,14 @@ const userSchema = new mongoose.Schema(
        maxlength: 11
     },
 
+    bvn: {
+      type: String,
+      trim: true,
+      default: '',
+      select: false,
+      maxlength: 11
+    },
+
     ninDocument: {
       type: String,
       default: '',

@@ -1,9 +1,140 @@
 const User = require('../models/user');
 const Product = require('../models/product');
 const Order = require('../models/order');
+const Earning = require('../models/earning');
+const Withdrawal = require('../models/withdrawal');
 const { deleteImage } = require('../config/cloudinary');
 const { creditOrderEarnings } = require('./walletService');
 const { createNotification } = require('./notificationService');
+
+const getAdminFinancials = async (range = '7days') => {
+  if (!['7days', 'monthly'].includes(range)) {
+    throw {
+      statusCode: 400,
+      message: 'Range must be either 7days or monthly'
+    };
+  }
+
+  const now = new Date();
+  const periodStart = range === 'monthly'
+    ? new Date(now.getFullYear(), now.getMonth(), 1)
+    : new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+  const periodLength = range === 'monthly'
+    ? now.getTime() - periodStart.getTime()
+    : 7 * 24 * 60 * 60 * 1000;
+  const previousPeriodStart = new Date(periodStart.getTime() - periodLength);
+  const periodLabel = range === 'monthly' ? 'This month' : 'This week';
+  const currency = new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+    maximumFractionDigits: 0
+  });
+
+  const [currentRevenue, previousRevenue, currentPayouts, pendingPayouts, chartSummary, payoutQueue, transactions] = await Promise.all([
+    Earning.aggregate([
+      { $match: { creditedAt: { $gte: periodStart, $lte: now } } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
+    ]),
+    Earning.aggregate([
+      { $match: { creditedAt: { $gte: previousPeriodStart, $lt: periodStart } } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]),
+    Withdrawal.aggregate([
+      { $match: { status: { $in: ['approved', 'paid'] }, createdAt: { $gte: periodStart, $lte: now } } },
+      { $group: { _id: null, total: { $sum: '$netAmount' } } }
+    ]),
+    Withdrawal.aggregate([
+      { $match: { status: 'pending' } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
+    ]),
+    Earning.aggregate([
+      { $match: { creditedAt: { $gte: periodStart, $lte: now } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$creditedAt' } },
+          value: { $sum: '$amount' }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]),
+    Withdrawal.find({ status: 'pending' })
+      .populate('farmer', 'firstName lastName email')
+      .sort({ createdAt: 1 })
+      .limit(20)
+      .lean(),
+    Earning.find({ creditedAt: { $gte: periodStart, $lte: now } })
+      .populate('farmer', 'firstName lastName')
+      .populate('product', 'name')
+      .sort({ creditedAt: -1 })
+      .limit(20)
+      .lean()
+  ]);
+
+  const revenue = currentRevenue[0]?.total || 0;
+  const previousTotal = previousRevenue[0]?.total || 0;
+  const trend = previousTotal === 0
+    ? (revenue > 0 ? '+100%' : '0%')
+    : `${revenue >= previousTotal ? '+' : ''}${Math.round(((revenue - previousTotal) / previousTotal) * 100)}%`;
+  const chartByDate = new Map(chartSummary.map((entry) => [entry._id, entry.value]));
+  const chartData = [];
+  const chartDays = range === 'monthly'
+    ? now.getDate()
+    : 7;
+
+  for (let index = chartDays - 1; index >= 0; index -= 1) {
+    const date = new Date(now);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - index);
+    const key = date.toISOString().slice(0, 10);
+
+    chartData.push({
+      month: range === 'monthly'
+        ? date.toLocaleString('en-US', { day: 'numeric' })
+        : date.toLocaleString('en-US', { weekday: 'short' }),
+      value: chartByDate.get(key) || 0
+    });
+  }
+
+  return {
+    stats: [
+      {
+        title: 'Total Revenue',
+        value: currency.format(revenue),
+        subtitle: periodLabel,
+        trend,
+        color: 'green',
+        icon: '₦'
+      },
+      {
+        title: 'Payouts',
+        value: currency.format(currentPayouts[0]?.total || 0),
+        subtitle: periodLabel,
+        trend: '',
+        color: 'blue',
+        icon: '₦'
+      },
+      {
+        title: 'Pending Payouts',
+        value: currency.format(pendingPayouts[0]?.total || 0),
+        subtitle: `${pendingPayouts[0]?.count || 0} requests`,
+        trend: '',
+        color: 'orange',
+        icon: '₦'
+      },
+      {
+        title: 'Transactions',
+        value: String(currentRevenue[0]?.count || 0),
+        subtitle: periodLabel,
+        trend: '',
+        color: 'purple',
+        icon: '#'
+      }
+    ],
+    payoutQueue,
+    transactions,
+    chartData
+  };
+};
 
 // Get all users with pagination and filtering
 const getAllUsers = async (filters = {}) => {
@@ -19,7 +150,9 @@ const getAllUsers = async (filters = {}) => {
 
 // Get user by ID
 const getUserById = async (userId) => {
-  const user = await User.findById(userId).select('-password');
+  const user = await User.findById(userId).select(
+    '_id firstName lastName email phone role farmName verificationStatus nin bvn +ninDocument profileImage createdAt'
+  );
 
   if (!user) {
     throw {
@@ -377,6 +510,7 @@ const rejectFarmerVerification = async (farmerId, reason) => {
 };
 
 module.exports = {
+  getAdminFinancials,
   getAllUsers,
   getUserById,
   deleteUser,

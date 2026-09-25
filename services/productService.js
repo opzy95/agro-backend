@@ -127,9 +127,15 @@ const createProduct = async (farmerId, productData, files) => {
   return product;
 };
 
-// Get all published products
-const getProducts = async () => {
-  const products = await Product.find({ status: 'published' })
+// Get all published products, optionally filtered by farmer
+const getProducts = async (farmerId) => {
+  const filter = { status: 'published' };
+
+  if (farmerId) {
+    filter.farmer = farmerId;
+  }
+
+  const products = await Product.find(filter)
     .populate('farmer', 'firstName lastName farmName')
     .sort({ createdAt: -1 });
 

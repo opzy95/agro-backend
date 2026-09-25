@@ -49,6 +49,21 @@ const getFarmerWallet = async (req, res) => {
   }
 };
 
+const getAdminFinancials = async (req, res) => {
+  try {
+    const { range = '7days' } = req.query;
+    const result = await adminService.getAdminFinancials(range);
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Get admin financials error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to get admin financials'
+    });
+  }
+};
+
 const getAllUsers = async (req, res) => {
   try {
     const result = await adminService.getAllUsers();
@@ -285,6 +300,7 @@ const rejectFarmerVerification = async (req, res) => {
 };
 
 module.exports = {
+  getAdminFinancials,
   getAllUsers,
   getUserById,
   deleteUser,

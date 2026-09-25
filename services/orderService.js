@@ -60,6 +60,7 @@ const validateAndPriceOrder = async (orderData) => {
   validateDeliveryDetails(deliveryMethod, shippingAddress);
 
   let subtotal = 0;
+  let farmerId;
 
   for (const item of items) {
     if (!item.product || !item.quantity) {
@@ -73,6 +74,15 @@ const validateAndPriceOrder = async (orderData) => {
 
     if (!product) {
       throw { statusCode: 404, message: `Product ${item.product} not found` };
+    }
+
+    if (!farmerId) {
+      farmerId = product.farmer.toString();
+    } else if (farmerId !== product.farmer.toString()) {
+      throw {
+        statusCode: 400,
+        message: "An order can only contain products from one farmer. Please place separate orders for products from different farmers"
+      };
     }
 
     if (product.status !== "published") {
@@ -167,6 +177,7 @@ const createOrder = async (customerId, orderData, payment) => {
 
   const orderItems = [];
   let subtotal = 0;
+  let farmerId;
 
   // Validate all products
   for (const item of items) {
@@ -183,6 +194,15 @@ const createOrder = async (customerId, orderData, payment) => {
       throw {
         statusCode: 404,
         message: `Product ${item.product} not found`,
+      };
+    }
+
+    if (!farmerId) {
+      farmerId = product.farmer.toString();
+    } else if (farmerId !== product.farmer.toString()) {
+      throw {
+        statusCode: 400,
+        message: "An order can only contain products from one farmer. Please place separate orders for products from different farmers",
       };
     }
 
@@ -567,11 +587,7 @@ const updateOrderItemStatus = async (orderId, farmerId, productId, status) => {
   return order;
 };
 
-const confirmDelivery = async (orderId, customerId, productId) => {
-  if (!productId) {
-    throw { statusCode: 400, message: "Product ID is required" };
-  }
-
+const confirmDelivery = async (orderId, customerId) => {
   const order = await Order.findById(orderId);
   if (!order) {
     throw { statusCode: 404, message: "Order not found" };
@@ -592,21 +608,16 @@ const confirmDelivery = async (orderId, customerId, productId) => {
     order.deliveryMethod = "farm_pickup";
   }
 
-  const orderItem = order.items.find(
-    (item) => item.product.toString() === productId,
-  );
-  if (!orderItem) {
-    throw { statusCode: 404, message: "Product not found in this order" };
-  }
-
-  if (orderItem.status === "delivered") {
-    return { order, item: orderItem };
+  if (order.orderStatus === "delivered") {
+    return { order, items: order.items };
   }
 
   const canConfirmPickup =
-    order.deliveryMethod === "farm_pickup" && orderItem.status === "processing";
+    order.deliveryMethod === "farm_pickup" &&
+    order.items.every((item) => item.status === "processing");
   const canConfirmDelivery =
-    order.deliveryMethod !== "farm_pickup" && orderItem.status === "shipped";
+    order.deliveryMethod !== "farm_pickup" &&
+    order.items.every((item) => item.status === "shipped");
 
   if (!canConfirmPickup && !canConfirmDelivery) {
     throw {
@@ -617,21 +628,25 @@ const confirmDelivery = async (orderId, customerId, productId) => {
     };
   }
 
-  orderItem.status = "delivered";
+  order.items.forEach((item) => {
+    item.status = "delivered";
+  });
+
+  updateOverallOrderStatus(order);
+
   publishNotifications([
     createNotification({
-      recipient: orderItem.farmer,
+      recipient: order.items[0].farmer,
       type: "order_received",
       title: "Order received",
-      message: `${orderItem.name} was confirmed as received by the customer.`,
+      message: "The customer confirmed receipt of the entire order.",
       order: order._id
     })
   ]);
-  updateOverallOrderStatus(order);
   await creditOrderEarnings(order);
   await order.save();
 
-  return { order, item: orderItem };
+  return { order, items: order.items };
 };
 
 const updateOverallOrderStatus = (order) => {

@@ -32,7 +32,7 @@ const createProduct = async (req, res) => {
 
 const getProducts = async (req, res) => {
   try {
-    const result = await productService.getProducts();
+    const result = await productService.getProducts(req.query.farmerId);
 
     res.status(200).json(result);
   } catch (error) {
