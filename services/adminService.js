@@ -3,6 +3,7 @@ const Product = require('../models/product');
 const Order = require('../models/order');
 const Earning = require('../models/earning');
 const Withdrawal = require('../models/withdrawal');
+const FarmerBankAccount = require('../models/FarmerBankAccount');
 const { deleteImage } = require('../config/cloudinary');
 const { creditOrderEarnings } = require('./walletService');
 const { createNotification } = require('./notificationService');
@@ -152,7 +153,7 @@ const getAllUsers = async (filters = {}) => {
 const getUserById = async (userId) => {
   const user = await User.findById(userId).select(
     '_id firstName lastName email phone role farmName verificationStatus nin bvn +ninDocument profileImage createdAt'
-  );
+  ).lean();
 
   if (!user) {
     throw {
@@ -161,7 +162,16 @@ const getUserById = async (userId) => {
     };
   }
 
-  return user;
+  const bankAccounts = user.role === 'farmer'
+    ? await FarmerBankAccount.find({ farmer: user._id })
+      .select('bankName bankCode accountNumber accountName isDefault createdAt')
+      .lean()
+    : [];
+
+  return {
+    ...user,
+    bankAccounts
+  };
 };
 
 // Delete user

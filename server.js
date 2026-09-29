@@ -5,13 +5,30 @@ const connectDB = require('./config/db');
 
 dotenv.config();
 
+const { connectRedis } = require('./config/redis');
+
 const app = express();
 
-app.use(cors());
+const allowedOrigins = new Set(
+  (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Origin is not allowed by CORS'));
+  }
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const sensitiveFieldPattern = /password|token|authorization|secret|key|cookie|email|phone|address|fullname|firstname|lastname/i;
+const sensitiveFieldPattern = /password|token|authorization|secret|key|cookie|email|phone|address|fullname|firstname|lastname|accountnumber|accountname|bvn|nin(document)?/i;
 
 const sanitizeForLog = (value, depth = 0) => {
   if (depth > 4) return '[Max depth reached]';
@@ -84,28 +101,6 @@ app.get('/', (req, res) => {
   });
 });
 
-const authRoutes = require('./routes/authRoute');
-const userRoutes = require('./routes/userRoutes');
-const productRoutes = require('./routes/productRoute');
-const orderRoutes = require('./routes/orderRoute');
-const wishlistRoutes = require('./routes/wishlistRoute');
-const cartRoutes = require('./routes/cartRoute');
-const adminRoutes = require('./routes/adminRoute');
-const farmerRoutes = require('./routes/farmerRoute');
-const notificationRoutes = require('./routes/notificationRoute');
-
-
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/wishlist', wishlistRoutes);
-app.use('/api/cart', cartRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/farmer', farmerRoutes);
-app.use('/api/notifications', notificationRoutes);
-
-
 app.use((error, req, res, next) => {
   if (error.name === 'MulterError' && error.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({
@@ -127,6 +122,27 @@ const PORT = process.env.PORT || 3000;
 
 const startServer = async () => {
   await connectDB();
+  await connectRedis();
+
+  const authRoutes = require('./routes/authRoute');
+  const userRoutes = require('./routes/userRoutes');
+  const productRoutes = require('./routes/productRoute');
+  const orderRoutes = require('./routes/orderRoute');
+  const wishlistRoutes = require('./routes/wishlistRoute');
+  const cartRoutes = require('./routes/cartRoute');
+  const adminRoutes = require('./routes/adminRoute');
+  const farmerRoutes = require('./routes/farmerRoute');
+  const notificationRoutes = require('./routes/notificationRoute');
+
+  app.use('/api/auth', authRoutes);
+  app.use('/api/users', userRoutes);
+  app.use('/api/products', productRoutes);
+  app.use('/api/orders', orderRoutes);
+  app.use('/api/wishlist', wishlistRoutes);
+  app.use('/api/cart', cartRoutes);
+  app.use('/api/admin', adminRoutes);
+  app.use('/api/farmer', farmerRoutes);
+  app.use('/api/notifications', notificationRoutes);
 
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

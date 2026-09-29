@@ -1,6 +1,5 @@
 const authService = require('../services/authService');
 const { sendEmail } = require('../services/email.Service');
-const { recordFailedRegistration } = require('../middleware/registrationRateLimit');
 
 const REGISTRATION_TIMEOUT_MS = 60 * 1000;
 const LOGIN_TIMEOUT_MS = 60 * 1000;
@@ -64,7 +63,6 @@ const registerUser = async (req, res) => {
       verificationEmail
     });
   } catch (error) {
-    recordFailedRegistration(req);
     console.error('Register error:', error);
 
     res.status(error.statusCode || 500).json({

@@ -9,6 +9,7 @@ const {
   getVerificationStatus,
   getMyWallet,
   requestWithdrawal,
+  getMyWithdrawals,
   addMyBankAccount,
   getMyBankAccounts,
   deleteMyBankAccount,
@@ -62,6 +63,7 @@ router.put(
 );
 
 router.post("/withdrawals", protect, authorize("farmer"), requestWithdrawal);
+router.get("/withdrawals", protect, authorize("farmer"), getMyWithdrawals);
 
 router.get("/farmer-test", protect, authorize("farmer"), (req, res) => {
   res.json({

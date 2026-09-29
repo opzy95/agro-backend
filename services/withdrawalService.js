@@ -115,6 +115,20 @@ const getWithdrawals = async () => {
   return withdrawals.map(toAdminWithdrawal);
 };
 
+const getFarmerWithdrawals = async (farmerId) => {
+  const withdrawals = await Withdrawal.find({ farmer: farmerId })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return withdrawals.map((withdrawal) => ({
+    ...withdrawal,
+    bankAccount: {
+      ...withdrawal.bankAccount,
+      accountNumber: `******${withdrawal.bankAccount.accountNumber.slice(-4)}`
+    }
+  }));
+};
+
 const updateWalletAfterWithdrawal = async (withdrawal, update, session) => {
   const wallet = await Wallet.findOneAndUpdate(
     {
@@ -203,6 +217,7 @@ const changeWithdrawalStatus = async (withdrawalId, status, rejectionReason) => 
 module.exports = {
   createWithdrawal,
   getWithdrawals,
+  getFarmerWithdrawals,
   approveWithdrawal: (withdrawalId) => changeWithdrawalStatus(withdrawalId, 'paid'),
   rejectWithdrawal: (withdrawalId, rejectionReason) =>
     changeWithdrawalStatus(withdrawalId, 'rejected', rejectionReason)

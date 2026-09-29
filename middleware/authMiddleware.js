@@ -28,9 +28,9 @@ const protect = async (req, res, next) => {
     // Find user
     const user = await User.findById(decoded.id).select('-password');
 
-    if (!user) {
+    if (!user || decoded.tokenVersion !== user.tokenVersion) {
       return res.status(401).json({
-        message: 'User no longer exists'
+        message: 'Session is no longer valid. Please log in again.'
       });
     }
 

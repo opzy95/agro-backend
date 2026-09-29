@@ -1,7 +1,8 @@
 const userService = require('../services/userService');
 const { getOrCreateFarmerWallet } = require('../services/walletService');
 const {
-  createWithdrawal
+  createWithdrawal,
+  getFarmerWithdrawals
 } = require('../services/withdrawalService');
 
 const {
@@ -95,6 +96,20 @@ const requestWithdrawal = async (req, res) => {
 
     res.status(error.statusCode || 500).json({
       message: error.message || 'Failed to request withdrawal'
+    });
+  }
+};
+
+const getMyWithdrawals = async (req, res) => {
+  try {
+    const withdrawals = await getFarmerWithdrawals(req.user._id);
+
+    res.status(200).json({ withdrawals });
+  } catch (error) {
+    console.error('Get farmer withdrawals error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to get withdrawal history'
     });
   }
 };
@@ -195,6 +210,7 @@ module.exports = {
   getVerificationStatus,
   getMyWallet,
   requestWithdrawal,
+  getMyWithdrawals,
   addMyBankAccount,
   getMyBankAccounts,
   deleteMyBankAccount

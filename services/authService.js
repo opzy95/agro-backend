@@ -13,7 +13,7 @@ const registerUser = async (userData) => {
     email,
     password,
     confirmPassword,
-    role,
+    role = 'customer',
     phone,
     address
   } = userData;
@@ -23,6 +23,13 @@ const registerUser = async (userData) => {
     throw {
       statusCode: 400,
       message: 'firstName, lastName, email, password, and confirmPassword are required'
+    };
+  }
+
+  if (!['customer', 'farmer'].includes(role)) {
+    throw {
+      statusCode: 400,
+      message: 'Role must be customer or farmer'
     };
   }
 
@@ -62,10 +69,7 @@ const registerUser = async (userData) => {
 
   // Hash password
   const hashedPassword = await bcrypt.hash(password, 10);
-  const isAdmin = (role || 'customer') === 'admin';
-  const verificationCode = isAdmin
-    ? null
-    : crypto.randomInt(100000, 1000000).toString();
+  const verificationCode = crypto.randomInt(100000, 1000000).toString();
 
   // Create user
   const user = await User.create({
@@ -73,27 +77,23 @@ const registerUser = async (userData) => {
     lastName,
     email,
     password: hashedPassword,
-    role: role || 'customer',
+    role,
     phone,
     address,
-    isEmailVerified: isAdmin,
-    emailVerificationCodeHash: verificationCode
-      ? crypto.createHash('sha256').update(verificationCode).digest('hex')
-      : null,
-    emailVerificationCodeExpires: verificationCode
-      ? new Date(Date.now() + 10 * 60 * 1000)
-      : null
+    emailVerificationCodeHash: crypto.createHash('sha256').update(verificationCode).digest('hex'),
+    emailVerificationCodeExpires: new Date(Date.now() + 10 * 60 * 1000)
   });
 
   // Create JWT
   const token = jwt.sign(
     {
       id: user._id,
-      role: user.role
+      role: user.role,
+      tokenVersion: user.tokenVersion
     },
     process.env.JWT_SECRET,
     {
-      expiresIn: '7d'
+      expiresIn: '1d'
     }
   );
 
@@ -124,7 +124,7 @@ const loginUser = async (credentials) => {
   }
 
   // Find user
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email }).select('+password');
 
   if (!user) {
     throw {
@@ -151,11 +151,12 @@ const loginUser = async (credentials) => {
   const token = jwt.sign(
     {
       id: user._id,
-      role: user.role
+      role: user.role,
+      tokenVersion: user.tokenVersion
     },
     process.env.JWT_SECRET,
     {
-      expiresIn: '7d'
+      expiresIn: '1d'
     }
   );
 
@@ -259,6 +260,7 @@ const resetPassword = async ({ email, code, password, confirmPassword }) => {
   }
 
   user.password = await bcrypt.hash(password, 10);
+  user.tokenVersion = (user.tokenVersion || 0) + 1;
   user.passwordResetCodeHash = null;
   user.passwordResetCodeExpires = null;
   await user.save();
