@@ -3,6 +3,7 @@ const { createClient } = require('redis');
 const redisClient = createClient({
   url: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
   socket: {
+    tls: {},
     reconnectStrategy: (retries) => {
       if (retries >= 5) {
         return false;
