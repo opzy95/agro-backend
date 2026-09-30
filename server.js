@@ -119,40 +119,48 @@ app.use((error, req, res, next) => {
   next(error);
 });
 
-
 const PORT = process.env.PORT || 3000;
 
 const startServer = async () => {
-  await connectDB();
-  await connectRedis();
+  try {
+    console.log("[BOOT] Connecting to MongoDB...");
+    await connectDB();
+    console.log("[BOOT] MongoDB connected successfully.");
 
-  const authRoutes = require('./routes/authRoute');
-  const userRoutes = require('./routes/userRoutes');
-  const productRoutes = require('./routes/productRoute');
-  const orderRoutes = require('./routes/orderRoute');
-  const wishlistRoutes = require('./routes/wishlistRoute');
-  const cartRoutes = require('./routes/cartRoute');
-  const adminRoutes = require('./routes/adminRoute');
-  const farmerRoutes = require('./routes/farmerRoute');
-  const notificationRoutes = require('./routes/notificationRoute');
+    console.log("[BOOT] Connecting to Redis...");
+    await connectRedis();
+    console.log("[BOOT] Redis connected successfully.");
 
-  app.use('/api/auth', authRoutes);
-  app.use('/api/users', userRoutes);
-  app.use('/api/products', productRoutes);
-  app.use('/api/orders', orderRoutes);
-  app.use('/api/wishlist', wishlistRoutes);
-  app.use('/api/cart', cartRoutes);
-  app.use('/api/admin', adminRoutes);
-  app.use('/api/farmer', farmerRoutes);
-  app.use('/api/notifications', notificationRoutes);
+    // Load routes only after databases are connected safely
+    const authRoutes = require('./routes/authRoute');
+    const userRoutes = require('./routes/userRoutes');
+    const productRoutes = require('./routes/productRoute');
+    const orderRoutes = require('./routes/orderRoute');
+    const wishlistRoutes = require('./routes/wishlistRoute');
+    const cartRoutes = require('./routes/cartRoute');
+    const adminRoutes = require('./routes/adminRoute');
+    const farmerRoutes = require('./routes/farmerRoute');
+    const notificationRoutes = require('./routes/notificationRoute');
 
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
+    app.use('/api/auth', authRoutes);
+    app.use('/api/users', userRoutes);
+    app.use('/api/products', productRoutes);
+    app.use('/api/orders', orderRoutes);
+    app.use('/api/wishlist', wishlistRoutes);
+    app.use('/api/cart', cartRoutes);
+    app.use('/api/admin', adminRoutes);
+    app.use('/api/farmer', farmerRoutes);
+    app.use('/api/notifications', notificationRoutes);
+
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+
+  } catch (error) {
+    console.error("❌ CRITICAL SERVER BOOT ERROR:");
+    console.error(error); // This will print the exact stack trace and error message
+    process.exit(1);      // Gracefully terminate the process instead of letting Node throw a generic uncaught error
+  }
 };
-
-
-
-
 
 startServer();
