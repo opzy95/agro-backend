@@ -50,7 +50,7 @@ const registerUser = async (userData) => {
   }
 
   // Check JWT_SECRET
-  if (!process.env.JWT_SECRET) {
+  if (!process.env.JWT_SECRET?.trim()) {
     throw {
       statusCode: 500,
       message: 'JWT_SECRET is not configured on the server'
@@ -121,6 +121,10 @@ const loginUser = async (credentials) => {
       statusCode: 400,
       message: 'Email and password are required'
     };
+  }
+
+  if (!process.env.JWT_SECRET?.trim()) {
+    throw createServiceError(500, 'JWT_SECRET is not configured on the server');
   }
 
   // Find user
