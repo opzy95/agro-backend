@@ -11,12 +11,12 @@ const { connectRedis } = require('./config/redis');
 
 const app = express();
 
-const allowedOrigins = new Set(
-  (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:5173,https://agro-jet-five.vercel.app')
-    .split(',')
-    .map((origin) => origin.trim().replace(/\/+$/, ''))
-    .filter(Boolean)
-);
+const allowedOrigins = new Set([
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://agro-jet-five.vercel.app',
+  ...(process.env.CORS_ORIGINS || '').split(',')
+].map((origin) => origin.trim().replace(/\/+$/, '')).filter(Boolean));
 
 app.use(cors({
   origin: (origin, callback) => {
