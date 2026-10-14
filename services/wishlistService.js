@@ -38,7 +38,7 @@ const addToWishlist = async (customerId, productId) => {
   // Only published products can be added to wishlist
   const product = await Product.findOne({
     _id: productId,
-    status: 'published'
+    status: { $in: ['published', 'active'] }
   });
 
   if (!product) {

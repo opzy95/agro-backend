@@ -85,7 +85,7 @@ const validateAndPriceOrder = async (orderData) => {
       };
     }
 
-    if (product.status !== "published") {
+    if (!['published', 'active'].includes(product.status)) {
       throw {
         statusCode: 400,
         message: `${product.name} is not currently available`,
@@ -207,7 +207,7 @@ const createOrder = async (customerId, orderData, payment) => {
     }
 
     // Product must be published
-    if (product.status !== "published") {
+    if (!['published', 'active'].includes(product.status)) {
       throw {
         statusCode: 400,
         message: `${product.name} is not currently available`,

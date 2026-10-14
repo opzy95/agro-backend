@@ -47,7 +47,7 @@ const addToCart = async (customerId, productId, quantity) => {
   }
 
   // Only published products can be purchased
-  if (product.status !== 'published') {
+  if (!['published', 'active'].includes(product.status)) {
     throw {
       statusCode: 400,
       message: 'This product is not available for purchase'

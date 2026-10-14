@@ -136,6 +136,27 @@ const updateProduct = async (req, res) => {
   }
 };
 
+const updateProductStatus = async (req, res) => {
+  try {
+    const product = await productService.updateProductStatus(
+      req.params.id,
+      req.user._id,
+      req.body.status
+    );
+
+    res.status(200).json({
+      message: `Product sales ${product.status === 'active' ? 'resumed' : 'paused'} successfully`,
+      product
+    });
+  } catch (error) {
+    console.error('Update product status error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to update product status'
+    });
+  }
+};
+
 const deleteProduct = async (req, res) => {
   try {
     const result = await productService.deleteProduct(req.params.id, req.user._id);
@@ -158,5 +179,6 @@ module.exports = {
   getProductReviews,
   getMyProducts,
   updateProduct,
+  updateProductStatus,
   deleteProduct
 };

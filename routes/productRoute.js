@@ -12,6 +12,7 @@ const {
   getProductReviews,
   getMyProducts,
   updateProduct,
+  updateProductStatus,
   deleteProduct
 } = require('../controllers/productController');
 
@@ -63,6 +64,15 @@ router.put(
   authorize('farmer'),
   upload.productImages,
   updateProduct
+);
+
+
+// PAUSE OR RESUME PRODUCT SALES
+router.patch(
+  '/:id/status',
+  protect,
+  authorize('farmer'),
+  updateProductStatus
 );
 
 

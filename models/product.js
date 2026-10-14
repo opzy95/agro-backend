@@ -120,7 +120,7 @@ const productSchema = new mongoose.Schema(
     // Product status
     status: {
       type: String,
-      enum: ['draft', 'published'],
+      enum: ['draft', 'published', 'active', 'paused', 'inactive'],
       default: 'draft'
     }
   },

@@ -129,7 +129,7 @@ const createProduct = async (farmerId, productData, files) => {
 
 // Get all published products, optionally filtered by farmer
 const getProducts = async (farmerId) => {
-  const filter = { status: 'published' };
+  const filter = { status: { $in: ['published', 'active'] } };
 
   if (farmerId) {
     filter.farmer = farmerId;
@@ -309,6 +309,36 @@ const updateProduct = async (productId, farmerId, updateData, files) => {
   return product;
 };
 
+const updateProductStatus = async (productId, farmerId, status) => {
+  if (!['paused', 'inactive', 'active'].includes(status)) {
+    throw {
+      statusCode: 400,
+      message: 'Status must be paused, inactive, or active'
+    };
+  }
+
+  const product = await Product.findById(productId);
+
+  if (!product) {
+    throw {
+      statusCode: 404,
+      message: 'Product not found'
+    };
+  }
+
+  if (product.farmer.toString() !== farmerId.toString()) {
+    throw {
+      statusCode: 403,
+      message: 'You can only update your own products'
+    };
+  }
+
+  product.status = status;
+  await product.save();
+
+  return product;
+};
+
 // Delete product
 const deleteProduct = async (productId, farmerId) => {
   const product = await Product.findById(productId);
@@ -347,5 +377,6 @@ module.exports = {
   getProductReviews,
   getMyProducts,
   updateProduct,
+  updateProductStatus,
   deleteProduct
 };
