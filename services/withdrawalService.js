@@ -158,6 +158,7 @@ const changeWithdrawalStatus = async (withdrawalId, status, rejectionReason) => 
       {
         $set: {
           status,
+          paidAt: status === 'paid' ? new Date() : null,
           rejectionReason: rejectionReason || ''
         }
       },

@@ -40,6 +40,11 @@ const withdrawalSchema = new mongoose.Schema(
       default: 'pending'
     },
 
+    paidAt: {
+      type: Date,
+      default: null
+    },
+
     rejectionReason: {
       type: String,
       default: ''

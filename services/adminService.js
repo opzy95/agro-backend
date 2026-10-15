@@ -9,29 +9,37 @@ const { creditOrderEarnings } = require('./walletService');
 const { createNotification } = require('./notificationService');
 
 const getAdminFinancials = async (range = '7days') => {
-  if (!['7days', 'monthly'].includes(range)) {
+  if (!['daily', 'weekly', 'monthly', '7days'].includes(range)) {
     throw {
       statusCode: 400,
-      message: 'Range must be either 7days or monthly'
+      message: 'Range must be daily, weekly, or monthly'
     };
   }
 
   const now = new Date();
-  const periodStart = range === 'monthly'
-    ? new Date(now.getFullYear(), now.getMonth(), 1)
-    : new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+  const normalizedRange = range === '7days' ? 'weekly' : range;
+  const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  if (normalizedRange === 'weekly') {
+    periodStart.setUTCDate(periodStart.getUTCDate() - ((periodStart.getUTCDay() + 6) % 7));
+  } else if (normalizedRange === 'monthly') {
+    periodStart.setUTCDate(1);
+  }
   const periodLength = range === 'monthly'
     ? now.getTime() - periodStart.getTime()
-    : 7 * 24 * 60 * 60 * 1000;
+    : normalizedRange === 'daily'
+      ? 24 * 60 * 60 * 1000
+      : 7 * 24 * 60 * 60 * 1000;
   const previousPeriodStart = new Date(periodStart.getTime() - periodLength);
-  const periodLabel = range === 'monthly' ? 'This month' : 'This week';
+  const periodLabel = normalizedRange === 'daily'
+    ? 'Today'
+    : normalizedRange === 'monthly' ? 'This month' : 'This week';
   const currency = new Intl.NumberFormat('en-NG', {
     style: 'currency',
     currency: 'NGN',
     maximumFractionDigits: 0
   });
 
-  const [currentRevenue, previousRevenue, currentPayouts, pendingPayouts, chartSummary, payoutQueue, transactions] = await Promise.all([
+  const [currentRevenue, previousRevenue, currentPayouts, pendingPayouts, chartSummary, payoutQueue, transactions, totalFees, periodFees] = await Promise.all([
     Earning.aggregate([
       { $match: { creditedAt: { $gte: periodStart, $lte: now } } },
       { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
@@ -68,35 +76,49 @@ const getAdminFinancials = async (range = '7days') => {
       .populate('product', 'name')
       .sort({ creditedAt: -1 })
       .limit(20)
-      .lean()
+      .lean(),
+    Withdrawal.aggregate([
+      { $match: { status: 'paid' } },
+      { $group: { _id: null, total: { $sum: '$platformFee' } } }
+    ]),
+    Withdrawal.aggregate([
+      { $match: { status: 'paid', paidAt: { $gte: periodStart, $lt: now } } },
+      { $group: { _id: null, total: { $sum: '$platformFee' } } }
+    ])
   ]);
 
   const revenue = currentRevenue[0]?.total || 0;
+  const totalRevenue = totalFees[0]?.total || 0;
+  const periodRevenue = periodFees[0]?.total || 0;
   const previousTotal = previousRevenue[0]?.total || 0;
   const trend = previousTotal === 0
     ? (revenue > 0 ? '+100%' : '0%')
     : `${revenue >= previousTotal ? '+' : ''}${Math.round(((revenue - previousTotal) / previousTotal) * 100)}%`;
   const chartByDate = new Map(chartSummary.map((entry) => [entry._id, entry.value]));
   const chartData = [];
-  const chartDays = range === 'monthly'
-    ? now.getDate()
-    : 7;
+  const chartDays = normalizedRange === 'monthly'
+    ? now.getUTCDate()
+    : normalizedRange === 'daily'
+      ? 1
+      : Math.floor((now.getTime() - periodStart.getTime()) / (24 * 60 * 60 * 1000)) + 1;
 
   for (let index = chartDays - 1; index >= 0; index -= 1) {
     const date = new Date(now);
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() - index);
+    date.setUTCHours(0, 0, 0, 0);
+    date.setUTCDate(date.getUTCDate() - index);
     const key = date.toISOString().slice(0, 10);
 
     chartData.push({
-      month: range === 'monthly'
-        ? date.toLocaleString('en-US', { day: 'numeric' })
-        : date.toLocaleString('en-US', { weekday: 'short' }),
+      month: normalizedRange === 'monthly'
+        ? date.toLocaleString('en-US', { day: 'numeric', timeZone: 'UTC' })
+        : date.toLocaleString('en-US', { weekday: 'short', timeZone: 'UTC' }),
       value: chartByDate.get(key) || 0
     });
   }
 
   return {
+    totalRevenue,
+    periodRevenue,
     stats: [
       {
         title: 'Total Revenue',
