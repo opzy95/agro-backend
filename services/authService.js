@@ -2,8 +2,36 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/user');
+const RefreshToken = require('../models/refreshToken');
 
 const createServiceError = (statusCode, message) => ({ statusCode, message });
+const ACCESS_TOKEN_TTL = '15m';
+const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+const hashRefreshToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
+const createTokenPair = async (user, familyId = crypto.randomBytes(16).toString('hex')) => {
+  const token = jwt.sign(
+    {
+      id: user._id,
+      role: user.role,
+      tokenVersion: user.tokenVersion
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: ACCESS_TOKEN_TTL }
+  );
+  const refreshToken = crypto.randomBytes(64).toString('hex');
+
+  await RefreshToken.create({
+    user: user._id,
+    tokenHash: hashRefreshToken(refreshToken),
+    familyId,
+    tokenVersion: user.tokenVersion,
+    expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS)
+  });
+
+  return { token, refreshToken };
+};
 
 // Register a new user
 const registerUser = async (userData) => {
@@ -84,21 +112,10 @@ const registerUser = async (userData) => {
     emailVerificationCodeExpires: new Date(Date.now() + 10 * 60 * 1000)
   });
 
-  // Create JWT
-  const token = jwt.sign(
-    {
-      id: user._id,
-      role: user.role,
-      tokenVersion: user.tokenVersion
-    },
-    process.env.JWT_SECRET,
-    {
-      expiresIn: '1d'
-    }
-  );
+  const tokens = await createTokenPair(user);
 
   return {
-    token,
+    ...tokens,
     user: {
       id: user._id,
       firstName: user.firstName,
@@ -151,21 +168,10 @@ const loginUser = async (credentials) => {
     throw createServiceError(403, 'Please verify your email before logging in');
   }
 
-  // Create JWT
-  const token = jwt.sign(
-    {
-      id: user._id,
-      role: user.role,
-      tokenVersion: user.tokenVersion
-    },
-    process.env.JWT_SECRET,
-    {
-      expiresIn: '1d'
-    }
-  );
+  const tokens = await createTokenPair(user);
 
   return {
-    token,
+    ...tokens,
     user: {
       id: user._id,
       firstName: user.firstName,
@@ -175,6 +181,63 @@ const loginUser = async (credentials) => {
       profileImage: user.profileImage
     }
   };
+};
+
+const refreshSession = async (refreshToken) => {
+  if (!refreshToken || typeof refreshToken !== 'string') {
+    throw createServiceError(400, 'Refresh token is required');
+  }
+
+  if (!/^[a-f0-9]{128}$/i.test(refreshToken)) {
+    throw createServiceError(401, 'Invalid or expired refresh token');
+  }
+
+  if (!process.env.JWT_SECRET?.trim()) {
+    throw createServiceError(500, 'JWT_SECRET is not configured on the server');
+  }
+
+  const storedToken = await RefreshToken.findOneAndUpdate({
+    tokenHash: hashRefreshToken(refreshToken),
+    expiresAt: { $gt: new Date() },
+    usedAt: null
+  }, {
+    $set: { usedAt: new Date() }
+  }, {
+    new: true
+  });
+
+  if (!storedToken) {
+    const reusedToken = await RefreshToken.findOne({
+      tokenHash: hashRefreshToken(refreshToken),
+      usedAt: { $ne: null }
+    });
+
+    if (reusedToken) {
+      await RefreshToken.deleteMany({ familyId: reusedToken.familyId });
+    }
+
+    throw createServiceError(401, 'Invalid or expired refresh token');
+  }
+
+  const user = await User.findById(storedToken.user);
+  if (!user || storedToken.tokenVersion !== user.tokenVersion) {
+    await RefreshToken.deleteMany({ familyId: storedToken.familyId });
+    throw createServiceError(401, 'Invalid or expired refresh token');
+  }
+
+  return createTokenPair(user, storedToken.familyId);
+};
+
+const logoutUser = async (refreshToken) => {
+  if (typeof refreshToken === 'string' && refreshToken.length > 0) {
+    const storedToken = await RefreshToken.findOne({
+      tokenHash: hashRefreshToken(refreshToken)
+    });
+
+    if (storedToken) {
+      await RefreshToken.deleteMany({ familyId: storedToken.familyId });
+    }
+  }
 };
 
 const requestPasswordReset = async (email) => {
@@ -267,6 +330,7 @@ const resetPassword = async ({ email, code, password, confirmPassword }) => {
   user.tokenVersion = (user.tokenVersion || 0) + 1;
   user.passwordResetCodeHash = null;
   user.passwordResetCodeExpires = null;
+  await RefreshToken.deleteMany({ user: user._id });
   await user.save();
 };
 
@@ -312,6 +376,8 @@ const verifyEmail = async ({ email, code }) => {
 module.exports = {
   registerUser,
   loginUser,
+  refreshSession,
+  logoutUser,
   requestPasswordReset,
   resendVerificationCode,
   resetPassword,

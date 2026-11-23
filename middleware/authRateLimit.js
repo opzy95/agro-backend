@@ -25,6 +25,13 @@ const loginRateLimit = createAuthRateLimit({
   message: 'Too many login attempts. Please try again in 15 minutes.'
 });
 
+const refreshRateLimit = createAuthRateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  prefix: 'refresh',
+  message: 'Too many token refresh attempts. Please try again in 15 minutes.'
+});
+
 const registrationRateLimit = createAuthRateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 5,
@@ -48,6 +55,7 @@ const verificationRateLimit = createAuthRateLimit({
 
 module.exports = {
   loginRateLimit,
+  refreshRateLimit,
   registrationRateLimit,
   recoveryRateLimit,
   verificationRateLimit

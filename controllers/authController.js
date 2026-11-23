@@ -58,6 +58,7 @@ const registerUser = async (req, res) => {
     res.status(201).json({
       message: 'Registration successful',
       token: result.token,
+      refreshToken: result.refreshToken,
       user: result.user,
       emailVerificationRequired: Boolean(result.verificationCode),
       verificationEmail
@@ -86,6 +87,7 @@ const loginUser = async (req, res) => {
     res.json({
       message: 'Login successful',
       token: result.token,
+      refreshToken: result.refreshToken,
       user: result.user
     });
   } catch (error) {
@@ -93,6 +95,36 @@ const loginUser = async (req, res) => {
 
     res.status(error.statusCode || 500).json({
       message: error.message || 'Login failed'
+    });
+  }
+};
+
+const refreshSession = async (req, res) => {
+  try {
+    const result = await authService.refreshSession(req.body && req.body.refreshToken);
+
+    res.json({
+      token: result.token,
+      refreshToken: result.refreshToken
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
+
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Could not refresh session'
+    });
+  }
+};
+
+const logoutUser = async (req, res) => {
+  try {
+    await authService.logoutUser(req.body && req.body.refreshToken);
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+
+    res.status(500).json({
+      message: 'Could not log out'
     });
   }
 };
@@ -202,6 +234,8 @@ const verifyEmail = async (req, res) => {
 module.exports = {
   registerUser,
   loginUser,
+  refreshSession,
+  logoutUser,
   requestPasswordReset,
   resendVerificationCode,
   resetPassword,
